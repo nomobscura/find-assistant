@@ -27,6 +27,7 @@ from .const import (
     CONF_GOOGLE_SECRETS,
     CONF_GOOGLE_SYNC_INTERVAL_HOURS,
     CONF_IRK_DEVICES,
+    CONF_MERGE_GOOGLEFINDMY_DEVICE,
     CONF_PROXY_ROOMS,
     CONF_STATIC_MAC_DEVICES,
     CONF_UPDATE_LOCATION,
@@ -239,6 +240,7 @@ class BleRoomPresenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_STATIC_MAC_DEVICES: [],
                     CONF_PROXY_ROOMS: [],
                     CONF_UPDATE_LOCATION: False,
+                    CONF_MERGE_GOOGLEFINDMY_DEVICE: False,
                 },
             )
 
@@ -723,6 +725,7 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
             data = dict(self.config_entry.data)
             data[CONF_UPDATE_LOCATION] = user_input[CONF_UPDATE_LOCATION]
             data[CONF_GOOGLE_SYNC_INTERVAL_HOURS] = user_input[CONF_GOOGLE_SYNC_INTERVAL_HOURS]
+            data[CONF_MERGE_GOOGLEFINDMY_DEVICE] = user_input[CONF_MERGE_GOOGLEFINDMY_DEVICE]
             return await self._save(data)
 
         schema = vol.Schema({
@@ -742,5 +745,9 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
             ): selector.NumberSelector(
                 selector.NumberSelectorConfig(min=0, max=168, step=1, mode=selector.NumberSelectorMode.BOX)
             ),
+            vol.Required(
+                CONF_MERGE_GOOGLEFINDMY_DEVICE,
+                default=self.config_entry.data.get(CONF_MERGE_GOOGLEFINDMY_DEVICE, False),
+            ): selector.BooleanSelector(),
         })
         return self.async_show_form(step_id="settings", data_schema=schema)

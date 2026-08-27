@@ -41,6 +41,19 @@ CONF_DETECTED_PROXY_ROOMS = "detected_proxy_rooms"
 # against anything meaningful.
 CONF_UPDATE_LOCATION = "update_location"
 
+# Opt-in: also tag each FMDN device's HA Device-registry entry with the
+# ("googlefindmy", <canonic_id>) identifier BSkando's "Google Find My Device"
+# HACS integration (github.com/BSkando/GoogleFindMy-HA) uses for its own
+# devices. If that integration is also installed and tracks the same
+# physical tag, HA's device registry auto-merges any two devices that share
+# an identifier tuple -- so both integrations' entities end up on one Device
+# page. Harmless and inert if that integration isn't installed (identifiers
+# don't need to correspond to an actually-loaded integration). Off by
+# default -- most users don't run both integrations, and it's a fairly
+# opinionated cross-integration behavior to opt into unprompted. See
+# resolver.py's google_device_id_for()/presence.py's device_identifiers().
+CONF_MERGE_GOOGLEFINDMY_DEVICE = "merge_googlefindmy_device"
+
 # Google Find My account auto-sync (alternative to one-time devices.json
 # upload -- see config_flow.py's sync_google_account/sync_google_now steps
 # and google_findmy/ for the vendored account/API client).

@@ -98,7 +98,7 @@ class _BaseDeviceSensor(SensorEntity):
         self._attr_name = f"{display_name} {display_suffix}"
         self._attr_unique_id = f"{DOMAIN}_{device_id}_{suffix}"
         self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, device_id)},
+            identifiers=tracker.device_identifiers(device_id),
             name=display_name,
             manufacturer=device.manufacturer,
             model=device.model,

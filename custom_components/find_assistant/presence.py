@@ -24,6 +24,7 @@ from homeassistant.helpers import device_registry as dr
 
 from .const import (
     CONF_DETECTED_PROXY_ROOMS,
+    CONF_MERGE_GOOGLEFINDMY_DEVICE,
     CONF_PROXY_ROOMS,
     CONF_UPDATE_LOCATION,
     DEFAULT_STALE_SECONDS,
@@ -218,12 +219,16 @@ def _describe_source(
 class DevicePresence:
     """Tracks one device's sightings across all proxies and its current best room."""
 
-    def __init__(self, device_id: str, name: str, kind: str, manufacturer: str | None = None, model: str | None = None):
+    def __init__(
+        self, device_id: str, name: str, kind: str,
+        manufacturer: str | None = None, model: str | None = None, google_device_id: str | None = None,
+    ):
         self.id = device_id  # unique -- see identity.py. Used for every registry/dict key.
         self.name = name  # display only -- NOT guaranteed unique across devices.
         self.kind = kind
         self.manufacturer = manufacturer  # Google's own label, FMDN-kind only -- see resolver.manufacturer_for
         self.model = model  # Google's own label, FMDN-kind only -- see resolver.model_for
+        self.google_device_id = google_device_id  # FMDN-kind only -- see resolver.google_device_id_for
         # real_source -> {"rssi": int, "ts": float, "room_name": str, "area_id": str|None, "proxy_device_id": str|None}
         self.sightings = {}
         self.room = None
@@ -328,10 +333,13 @@ class RoomPresenceTracker:
             m["source"].upper(): m["room"] for m in entry.data.get(CONF_DETECTED_PROXY_ROOMS, [])
         }
         self.update_location = entry.data.get(CONF_UPDATE_LOCATION, False)  # gates the device-registry mutations
+        # See CONF_MERGE_GOOGLEFINDMY_DEVICE's docstring in const.py -- used by device_identifiers() below.
+        self.merge_googlefindmy_device = entry.data.get(CONF_MERGE_GOOGLEFINDMY_DEVICE, False)
         self.devices = {
             device_id: DevicePresence(
                 device_id, resolver.name_for(device_id), resolver.kind_for(device_id),
                 manufacturer=resolver.manufacturer_for(device_id), model=resolver.model_for(device_id),
+                google_device_id=resolver.google_device_id_for(device_id),
             )
             for device_id in resolver.device_ids
         }
@@ -401,6 +409,31 @@ class RoomPresenceTracker:
             device.entities.remove(entity)
         if device.primary_entity is entity:
             device.primary_entity = None
+
+    def device_identifiers(self, device_id: str) -> set[tuple[str, str]]:
+        """The full Device-registry `identifiers` set for a tracked device --
+        always our own (DOMAIN, device_id), plus, when
+        CONF_MERGE_GOOGLEFINDMY_DEVICE is enabled and this device has a known
+        Google canonic id, ("googlefindmy", <canonic_id>) too -- the exact
+        identifier tuple BSkando's "Google Find My Device" HACS integration
+        uses for the same physical tag, so HA's device registry auto-merges
+        the two into one Device page if that integration is also installed
+        and tracking it (harmless/inert if it isn't).
+
+        Used everywhere a Device-registry entry gets created or updated for
+        a tracked device (this module's own pre-creation, and every
+        sensor.py/button.py entity's DeviceInfo) -- ALL of them, since
+        device_registry.async_get_or_create() replaces the stored
+        identifiers set on each call rather than merging it
+        (merge_identifiers=False internally), so any call site that omits
+        the extra tuple would silently wipe it out again on its next setup.
+        """
+        identifiers = {(DOMAIN, device_id)}
+        if self.merge_googlefindmy_device:
+            device = self.devices.get(device_id)
+            if device is not None and device.google_device_id:
+                identifiers.add(("googlefindmy", device.google_device_id))
+        return identifiers
 
     def _tag_device_entry(self, device: DevicePresence):
         """The tag's own Device-registry entry, via cached registry id (with

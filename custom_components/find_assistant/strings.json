@@ -88,10 +88,11 @@
       },
       "settings": {
         "title": "Settings",
-        "description": "Optional: move each tracked device's Area to match its current proxy (off by default, since it relocates the device as it roams). The sync interval only applies once a Google account is linked -- 0 means manual sync only.",
+        "description": "Optional: move each tracked device's Area to match its current proxy (off by default, since it relocates the device as it roams). The sync interval only applies once a Google account is linked -- 0 means manual sync only.\n\nMerging with BSkando's \"Google Find My Device\" integration (if installed) shares one Device page per tag between both integrations. Note: removing a device here while merged will also remove that integration's tracking of the same tag, since Home Assistant treats them as one Device.",
         "data": {
           "update_location": "Update each device's Area automatically",
-          "google_sync_interval_hours": "Hours between automatic Google account resyncs (0 = manual only)"
+          "google_sync_interval_hours": "Hours between automatic Google account resyncs (0 = manual only)",
+          "merge_googlefindmy_device": "Merge devices with BSkando's Google Find My Device integration, if installed"
         }
       }
     },
