@@ -1,9 +1,10 @@
 // Find Assistant -- Lovelace strategy.
 //
 // Groups every Find Assistant tracker by its current room and, per tracker,
-// shows a "Last Seen" row plus a "Ring" button (when the device has one --
-// only FMDN devices do). Trackers that have never been seen at all (their
-// _last_seen sensor is still "unknown"/"unavailable") are skipped entirely,
+// shows a "Last Location Change" row plus a "Ring" button (when the device
+// has one -- only FMDN devices do). Trackers that have never been seen at
+// all (their _last_seen sensor -- which tracks room changes, not raw
+// sightings -- is still "unknown"/"unavailable") are skipped entirely,
 // since there's nothing meaningful to show for them yet. Trackers currently
 // away get their own section instead of a room.
 //
@@ -107,7 +108,7 @@ function buildTrackersView(config, hass) {
     const rows = [];
     trackers.forEach((tracker) => {
       rows.push({ type: "section", label: tracker.name });
-      rows.push({ entity: tracker.lastSeenEntityId, name: "Last Seen" });
+      rows.push({ entity: tracker.lastSeenEntityId, name: "Last Location Change" });
       if (tracker.ringEntityId) {
         rows.push({ entity: tracker.ringEntityId, name: "Ring" });
       }

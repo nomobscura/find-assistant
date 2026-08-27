@@ -50,8 +50,8 @@ engine:
 
 Diagnostic entities per device: last known room (persists through
 "away"), signal strength (RSSI) and nearby-proxy candidates, current
-advertising MAC address, last-seen timestamp, and the configured IRK
-(IRK devices only).
+advertising MAC address, timestamp of the last room change, and the
+configured IRK (IRK devices only).
 
 ## Installation
 
@@ -98,8 +98,9 @@ exist, instead of a static YAML file you have to keep updating by hand.
 
 It groups trackers by their current room. Trackers that have never
 been seen at all are left out entirely. Each tracker shown gets a
-**Last Seen** row and, if it has one, a **Ring** button. Trackers that
-are currently away get their own section instead of a room.
+**Last Location Change** row and, if it has one, a **Ring** button.
+Trackers that are currently away get their own section instead of a
+room.
 
 The integration registers its strategy JS as an extra frontend module
 automatically on startup (`frontend.add_extra_js_url`) — **no manual

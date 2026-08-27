@@ -7,12 +7,14 @@ Settings -> Devices & Services -> Find Assistant -> "Mail Key"):
   - sensor.<name>_rssi        diagnostic: RSSI at the currently-winning proxy
   - sensor.<name>_last_room   diagnostic, displayed as "<name> Last Location": most recent known room (persists through "not_home")
   - sensor.<name>_current_mac diagnostic: device's current advertising address
-  - sensor.<name>_last_seen   diagnostic: timestamp of the last genuine sighting by any proxy
-                                      (a genuine sighting, unlike the internal recompute timestamp)
+  - sensor.<name>_last_seen   diagnostic, displayed as "<name> Last Location Change": timestamp
+                                      of the last time this device's room actually changed
+                                      (not every sighting -- see DeviceLastSeenSensor)
   - sensor.<name>_irk         diagnostic: the configured IRK, IRK-kind devices only
 
-Entity_id/unique_id suffixes ("_room"/"_last_room") are unchanged from before this was
-renamed -- only the displayed friendly name changed ("Room" -> "Location"). HA generates
+Entity_id/unique_id suffixes ("_room"/"_last_room"/"_last_seen") are unchanged from before this
+was renamed -- only the displayed friendly name changed ("Room" -> "Location", "Last Seen" ->
+"Last Location Change"). HA generates
 entity_id from the friendly name only once, at first creation; it's frozen in the entity
 registry after that and never silently changes even when the underlying `_attr_name` this
 code reports does (confirmed against HA's own entity_registry behavior) -- so this rename is
@@ -193,25 +195,36 @@ class DeviceLastRoomSensor(_BaseDeviceSensor):
 
 
 class DeviceLastSeenSensor(_BaseDeviceSensor):
-    """The actual last time this device was heard from by any proxy.
+    """The last time this device's current room actually changed -- NOT
+    every time it was heard from (a device sitting still in range still
+    gets sighted repeatedly; this only ticks on an actual move between
+    rooms, or the very first time it's ever placed in one).
 
     Distinct from DevicePresence.updated_at, which is stamped by every
-    recompute() tick (every 5s regardless of sightings) and so is NOT a
-    "last seen" answer -- that field is now internal-only for exactly that
-    reason. TIMESTAMP device class gets HA's automatic "5 minutes ago"-style
-    relative rendering for free, and is usable directly in
-    automations/history unlike a buried attribute."""
+    recompute() tick (every 5s regardless of sightings), and from
+    last_seen_at, which IS "heard from at all" (still used internally by
+    sweep_stale()'s staleness/recovery logic, just not shown here anymore
+    -- see DevicePresence.last_room_change_at). TIMESTAMP device class
+    gets HA's automatic "5 minutes ago"-style relative rendering for
+    free, and is usable directly in automations/history unlike a buried
+    attribute.
+
+    Entity_id/unique_id suffix ("_last_seen") is unchanged despite the
+    renamed/repurposed display -- same reasoning as the "Room" ->
+    "Location" rename: HA freezes entity_id from the name only at first
+    creation, so changing it here doesn't break existing dashboards/
+    automations, only the label shown in the UI updates."""
 
     _attr_icon = "mdi:clock-outline"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
     _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(self, tracker: RoomPresenceTracker, device_id: str):
-        super().__init__(tracker, device_id, "last_seen", "Last Seen")
+        super().__init__(tracker, device_id, "last_seen", "Last Location Change")
 
     @property
     def native_value(self):
-        ts = self._device.last_seen_at
+        ts = self._device.last_room_change_at
         return datetime.fromtimestamp(ts, tz=timezone.utc) if ts is not None else None
 
 

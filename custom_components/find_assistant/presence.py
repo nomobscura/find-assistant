@@ -237,6 +237,11 @@ class DevicePresence:
         # regardless of whether this device was actually heard from. last_seen_at (below) is the real
         # "last seen" answer -- only ever set from an actual sighting, in note_sighting() itself.
         self.last_seen_at = None
+        # Set only when `room` actually changes value in recompute() (below) -- unlike last_seen_at,
+        # which ticks on every genuine sighting even if the device hasn't moved. Kept as a separate
+        # field rather than repurposing last_seen_at itself, since sweep_stale()'s staleness/recovery
+        # logic genuinely needs "when was this last heard from at all", not "when did it last move".
+        self.last_room_change_at = None
         self.winning_source = None  # raw proxy source currently winning, or None -- drives enter/leave events
         self.entities = []  # every sensor.py entity for this device (room, rssi, last_room, current_mac)
         self.primary_entity = None  # the Location sensor specifically, for tagging fired events with an entity_id
@@ -288,7 +293,10 @@ class DevicePresence:
         new_via_device_id = best["proxy_device_id"] if best else None
         new_rssi = best["rssi"] if best else None
 
-        changed = new_room != self.room or new_rssi != self.rssi
+        room_changed = new_room != self.room
+        changed = room_changed or new_rssi != self.rssi
+        if room_changed:
+            self.last_room_change_at = now
         self.room = new_room
         self.area_id = new_area_id
         self.via_device_id = new_via_device_id

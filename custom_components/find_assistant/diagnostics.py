@@ -81,6 +81,8 @@ def _device_snapshot(device: DevicePresence) -> dict[str, Any]:
             "kind": device.kind,
             "room": device.room,
             "last_room": device.last_room,
+            "last_seen_at": device.last_seen_at,
+            "last_room_change_at": device.last_room_change_at,
             "area_id": device.area_id,
             "via_device_id": device.via_device_id,
             "rssi": device.rssi,
