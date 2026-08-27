@@ -1,15 +1,20 @@
 # Find Assistant — independent multi-strategy BLE room presence
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="custom_components/find_assistant/dark_logo@2x.png 2x, custom_components/find_assistant/dark_logo.png 1x">
-  <img alt="Find Assistant logo" src="custom_components/find_assistant/logo.png" srcset="custom_components/find_assistant/logo@2x.png 2x, custom_components/find_assistant/logo.png 1x" width="128">
+  <source media="(prefers-color-scheme: dark)" srcset="custom_components/find_assistant/brand/dark_logo@2x.png 2x, custom_components/find_assistant/brand/dark_logo.png 1x">
+  <img alt="Find Assistant logo" src="custom_components/find_assistant/brand/logo.png" srcset="custom_components/find_assistant/brand/logo@2x.png 2x, custom_components/find_assistant/brand/logo.png 1x" width="128">
 </picture>
 
-> Note: Home Assistant's own UI (Settings → Devices & Services, the
-> config-flow header, device pages) doesn't read these files -- it only
-> shows integration branding it pulls from the external
-> [`home-assistant/brands`](https://github.com/home-assistant/brands) repo.
-> These are kept here purely as project assets for this README/repo
+> These live in `custom_components/find_assistant/brand/` (icon + logo,
+> light + dark, plus `@2x` variants) -- as of Home Assistant 2026.3.0's
+> Brands Proxy API, a custom integration's own `brand/` folder is read
+> directly by HA's UI (Settings → Devices & Services, the config-flow
+> header, device pages), no submission to the external
+> [`home-assistant/brands`](https://github.com/home-assistant/brands) repo
+> required. That external repo is only relevant if you want this
+> integration's icon to show up in "Add Integration" search results
+> *before* install (e.g. once/if this is listed on HACS) -- not needed
+> for a locally-installed integration like this one.
 > (`logo.png`/`logo@2x.png` light, `dark_logo.png`/`dark_logo@2x.png` dark).
 
 A native Home Assistant integration for room-level BLE presence that does
