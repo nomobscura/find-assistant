@@ -132,15 +132,6 @@ up correctly without touching the dashboard config again.
 
 ## Known Issues
 
-- **The dashboard strategy can show "Timeout waiting for strategy
-  element ... to be registered" on the first load after a fresh
-  browser session/restart.** Home Assistant's dashboard-strategy loader
-  gives the strategy JS a fixed 5-second window to load and register
-  itself; if your setup (reverse proxy, service worker cold-start,
-  slow connection) needs longer than that on a first request, this
-  fixed window can be missed even though nothing is actually broken.
-  A page refresh or two resolves it -- the strategy loads instantly
-  once the environment is "warm."
 - **Phones aren't synced automatically.** Google's account-sync API
   doesn't expose a usable key for phones, so they never show up via
   "Link/relink a Google Find My account." If you have the phone's own
