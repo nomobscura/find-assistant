@@ -311,17 +311,6 @@ class GoogleFindMySession:
                 unmatched.append({"name": name, "account_key": account_key})
                 continue
 
-            # Google's own internal per-device id -- NOT a hardware serial
-            # number (Google's API doesn't expose one for these trackers).
-            # Same field BSkando's "Google Find My Device" HACS integration
-            # surfaces as its device's "Serial Number" (their own code labels
-            # it "technical id in the proper field" -- it's just a
-            # convenient always-visible DeviceInfo slot, not a real serial).
-            # Repeated field; a device should only ever have one canonic id,
-            # but index defensively rather than assume.
-            canonic_ids = device.identifierInformation.canonicIds.canonicId
-            google_device_id = canonic_ids[0].id if canonic_ids else None
-
             devices.append({
                 "name": name,
                 "identity_key": identity_key.hex(),
@@ -331,9 +320,6 @@ class GoogleFindMySession:
                 # default) is normalized to None rather than an empty field.
                 "manufacturer": registration.manufacturer or None,
                 "model": registration.model or None,
-                # See CONF_MERGE_GOOGLEFINDMY_DEVICE in const.py for what
-                # this is used for.
-                "google_device_id": google_device_id,
             })
 
         return devices, unmatched

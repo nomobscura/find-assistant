@@ -100,7 +100,6 @@ class IdentityResolver:
         self._fmdn_identity_key_hex: dict[str, str] = {}  # id -> raw identity_key hex, for ring.py
         self._manufacturer: dict[str, str] = {}  # id -> Google's manufacturer label, FMDN-kind only
         self._model: dict[str, str] = {}  # id -> Google's model label, FMDN-kind only
-        self._google_device_id: dict[str, str] = {}  # id -> Google's own canonic device id, FMDN-kind only
         for d, device_id in zip(fmdn_devices, self._fmdn_ids):
             self._names[device_id] = d["name"]
             self._kinds[device_id] = KIND_FMDN
@@ -109,8 +108,6 @@ class IdentityResolver:
                 self._manufacturer[device_id] = d["manufacturer"]
             if d.get("model"):
                 self._model[device_id] = d["model"]
-            if d.get("google_device_id"):
-                self._google_device_id[device_id] = d["google_device_id"]
 
         # Per-address IRK resolution cache -- see module docstring.
         self._irk_hits: dict[str, str] = {}
@@ -241,10 +238,3 @@ class IdentityResolver:
         """Google's own model label (e.g. "Pebblebee Clip") -- see
         manufacturer_for's docstring, same availability caveats."""
         return self._model.get(device_id)
-
-    def google_device_id_for(self, device_id: str) -> str | None:
-        """Google's own internal canonic device id for an FMDN-kind device
-        synced from an account -- see CONF_MERGE_GOOGLEFINDMY_DEVICE in
-        const.py for what it's used for. Same availability caveats as
-        manufacturer_for (FMDN-kind, synced-from-account only)."""
-        return self._google_device_id.get(device_id)

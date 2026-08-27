@@ -135,7 +135,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     for device_id, device in tracker.devices.items():
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
-            identifiers=tracker.device_identifiers(device_id),
+            identifiers={(DOMAIN, device_id)},
             name=device.name,
             manufacturer=device.manufacturer,
             model=device.model,

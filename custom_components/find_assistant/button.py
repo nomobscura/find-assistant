@@ -64,7 +64,7 @@ class DeviceRingButton(ButtonEntity):
         self._display_name = display_name
         self._attr_unique_id = f"{DOMAIN}_{device_id}_ring"
         self._attr_device_info = DeviceInfo(
-            identifiers=tracker.device_identifiers(device_id),
+            identifiers={(DOMAIN, device_id)},
             name=display_name,
             manufacturer=device.manufacturer,
             model=device.model,

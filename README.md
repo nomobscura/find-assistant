@@ -43,18 +43,10 @@ engine:
   reports without needing to rename its Home Assistant Area.
 - **Auto-generating dashboard view** — a Lovelace strategy that groups
   trackers by current room automatically (no static YAML to keep in
-  sync as devices come and go), with away trackers in a separate
-  section. See [Dashboard](#dashboard) below. A static alternative,
-  [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml), is
-  also included.
-- **Merge devices with BSkando's Google Find My Device integration**
-  (opt-in, off by default) — if you also run
-  [BSkando/GoogleFindMy-HA](https://github.com/BSkando/GoogleFindMy-HA),
-  enabling this shares one Device page per tag between both
-  integrations, using the same Google-assigned id that integration
-  labels "Serial Number". See the caveat under Settings in Configure
-  before turning it on — removing a device here while merged also
-  removes that integration's tracking of the same tag.
+  sync as devices come and go), with a separate "Away" section
+  including a map. See [Dashboard](#dashboard) below. A static
+  alternative, [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml),
+  is also included.
 
 Diagnostic entities per device: last known room (persists through
 "away"), signal strength (RSSI) and nearby-proxy candidates, current
