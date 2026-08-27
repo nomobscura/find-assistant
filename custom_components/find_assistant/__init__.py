@@ -22,6 +22,7 @@ from pathlib import Path
 
 from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
+from homeassistant.loader import async_get_integration
 
 try:
     from homeassistant.components.bluetooth import BluetoothScanningMode
@@ -115,7 +116,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 cache_headers=False,
             )]
         )
-        add_extra_js_url(hass, f"/{DOMAIN}/static/find-assistant-strategy.js")
+        # ?v=<integration version> cache-busts the injected URL itself --
+        # confirmed live (repeatedly) that browsers/service workers can keep
+        # serving a stale cached copy of this file despite cache_headers=False
+        # and a fresh restart, requiring a manual browser cache clear to pick
+        # up a real update. Since the URL changes on every version bump, the
+        # old cached response is for a different URL entirely and can't be
+        # reused, regardless of how any caching layer treats this specific
+        # path otherwise.
+        integration = await async_get_integration(hass, DOMAIN)
+        version = str(integration.version) if integration.version else "0"
+        add_extra_js_url(hass, f"/{DOMAIN}/static/find-assistant-strategy.js?v={version}")
         hass.data[f"{DOMAIN}_www_registered"] = True
 
     # Pre-create each tracked device's HA Device-registry entry *before*
