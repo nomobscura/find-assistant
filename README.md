@@ -77,10 +77,11 @@ IRK or static-MAC devices.
      automatically (recommended; needs `secrets.json` from
      GoogleFindMyTools, see prerequisite above).
    - **Import/update FMDN devices.json** — one-time/manual alternative
-     if you'd rather not link an account: a JSON file of
-     `{name, identity_key, pair_date}` entries per device, derived from
-     the same GoogleFindMyTools session (not a stock export format —
-     you'd need your own script against its decrypted device data).
+     if you'd rather not link an account. Generate it with
+     [google-findmy-device-lister](https://github.com/nomobscura/google-findmy-device-lister),
+     a small drop-in add-on for GoogleFindMyTools that exports
+     `{name, identity_key, pair_date, account_key, manufacturer, model}`
+     for every device on your account.
    - **Add a device by IRK** — name + 32-hex-char (16-byte) IRK.
    - **Add a device by static MAC** — name + `AA:BB:CC:DD:EE:FF`.
    - **Remove a device** — multi-select removal across all kinds.
