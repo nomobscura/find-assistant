@@ -89,6 +89,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # www/find-assistant-strategy.js), and register it as an extra frontend
     # module so it loads on every page automatically -- no manual "Add
     # Resource" step in Settings -> Dashboards -> Resources required.
+    #
+    # URL path is deliberately "/find_assistant/static/..." (a literal
+    # "static" path SEGMENT), not "/find_assistant_static/..." -- confirmed
+    # live (a real user hit this) that HA's frontend service worker has a
+    # fast, dedicated CacheFirst route for any path containing a "/static/"
+    # segment (see frontend's service-worker.ts), separate from the much
+    # slower generic StaleWhileRevalidate catch-all every other path falls
+    # into. "/find_assistant_static/" doesn't contain that segment (it's
+    # "static" glued onto "find_assistant" as one path component, not a
+    # separate one) and fell into the slow catch-all -- which on at least
+    # one real setup measured minutes, not seconds, to resolve, blowing
+    # right through Lovelace's fixed 5-second strategy-load timeout.
+    #
     # add_extra_js_url() is idempotent (backed by a frozenset), but the
     # static-path registration below isn't -- aiohttp rejects registering the
     # same url_path twice -- so both are guarded with a hass.data flag since
@@ -97,12 +110,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not hass.data.get(f"{DOMAIN}_www_registered"):
         await hass.http.async_register_static_paths(
             [StaticPathConfig(
-                f"/{DOMAIN}_static",
+                f"/{DOMAIN}/static",
                 str(Path(__file__).parent / "www"),
                 cache_headers=False,
             )]
         )
-        add_extra_js_url(hass, f"/{DOMAIN}_static/find-assistant-strategy.js")
+        add_extra_js_url(hass, f"/{DOMAIN}/static/find-assistant-strategy.js")
         hass.data[f"{DOMAIN}_www_registered"] = True
 
     # Pre-create each tracked device's HA Device-registry entry *before*
