@@ -18,6 +18,9 @@ import json
 import logging
 import re
 from datetime import timedelta
+from pathlib import Path
+
+from homeassistant.components.http import StaticPathConfig
 
 try:
     from homeassistant.components.bluetooth import BluetoothScanningMode
@@ -80,6 +83,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     tracker = RoomPresenceTracker(hass, resolver, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = tracker
+
+    # Serve this integration's optional Lovelace strategy JS (groups trackers
+    # by room in a dashboard view, no static YAML to maintain by hand -- see
+    # www/find-assistant-strategy.js). Users still need to add it once as a
+    # dashboard Resource (Settings -> Dashboards -> Resources); there's no
+    # stable public API for a custom integration to register that for them.
+    # Guarded with a hass.data flag since async_setup_entry can re-run on
+    # reload (e.g. after a Google sync detects device-list changes), and
+    # aiohttp rejects registering the same url_path twice.
+    if not hass.data.get(f"{DOMAIN}_www_registered"):
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(
+                f"/{DOMAIN}_static",
+                str(Path(__file__).parent / "www"),
+                cache_headers=False,
+            )]
+        )
+        hass.data[f"{DOMAIN}_www_registered"] = True
 
     # Pre-create each tracked device's HA Device-registry entry *before*
     # catch_up() below -- normally that entry only gets created by sensor.py's

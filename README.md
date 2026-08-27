@@ -44,9 +44,12 @@ engine:
   for devices synced from a Google account.
 - **Per-proxy Area override** — rename what room a specific proxy
   reports without needing to rename its Home Assistant Area.
-- **Ready-made dashboard** — [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml),
-  a full Lovelace config grouping tracked devices by current room plus
-  an "Away" section.
+- **Auto-generating dashboard view** — a Lovelace strategy that groups
+  trackers by current room automatically (no static YAML to keep in
+  sync as devices come and go), with a separate "Away" section
+  including a map. See [Dashboard](#dashboard) below. A static
+  alternative, [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml),
+  is also included.
 
 Diagnostic entities per device: last known room (persists through
 "away"), signal strength (RSSI) and nearby-proxy candidates, current
@@ -89,6 +92,38 @@ IRK or static-MAC devices.
 No FMDN-specific firmware needed on the proxy side — plain ESPHome
 `bluetooth_proxy:` is enough, since all matching happens here in
 Python.
+
+## Dashboard
+
+The integration ships a Lovelace **view strategy** — a small JS module
+that builds the dashboard dynamically from whatever trackers currently
+exist, instead of a static YAML file you have to keep updating by hand.
+
+It groups trackers by their current room. Trackers that have never
+been seen at all are left out entirely. Each tracker shown gets a
+**Last Seen** row and, if it has one, a **Ring** button. Trackers that
+are currently away get their own section instead of a room, with an
+additional **Last Known Location** row (a Google Maps link) and a
+shared map plotting every away tracker that has coordinates.
+
+**One-time setup:**
+
+1. **Settings → Dashboards → ⋮ (top right) → Resources → Add Resource.**
+   - URL: `/find_assistant_static/find-assistant-strategy.js`
+   - Resource type: **JavaScript Module**
+2. Open (or create) a dashboard, **Edit Dashboard → ⋮ → Edit in YAML**,
+   and add a view using the strategy:
+   ```yaml
+   views:
+     - strategy:
+         type: custom:find-assistant-trackers
+         title: Trackers        # optional, defaults to "Trackers"
+         away_title: Away       # optional, defaults to "Away"
+   ```
+
+That's it — the view regenerates itself from live entities/devices
+every time it's opened, so newly added or removed trackers just show
+up correctly without touching the dashboard config again.
 
 ## Known Issues
 
