@@ -1,0 +1,101 @@
+# Tag Locations dashboard for Find Assistant.
+#
+# This is a FULL dashboard config (top-level `views:` array) -- paste this
+# whole file into a brand-new dashboard's raw YAML editor (Settings ->
+# Dashboards -> Add Dashboard -> "Take Control"/raw YAML mode, or the "..."
+# menu -> Edit in YAML on an existing empty one).
+#
+# If you'd rather add this as a new TAB inside a dashboard you already have
+# views in, don't paste this whole file -- instead open that dashboard's
+# raw YAML editor and paste just the ONE object under `views:` below
+# (everything from `- title: Tags` down) as a new entry in its existing
+# `views:` list.
+#
+# Uses only stock Lovelace cards (entity-filter, glance, entities) -- no
+# HACS custom cards required, even though this HA instance has HACS
+# installed. Groups tags by their CURRENT room using each device's
+# sensor.<name>_room entity (displayed in the UI as "<name> Location", but
+# the entity_id/suffix is still "_room" -- see sensor.py's rename comment).
+#
+# entity-filter cards only show entities whose current state matches
+# state_filter -- so a tag that's away simply never appears on a room card
+# at all (no extra work needed to "get it out of the house"), and
+# show_empty: false hides a whole room's card when nothing is currently
+# there, keeping the dashboard from cluttering up with empty sections.
+#
+# HOW TO FILL IN YOUR ENTITY LIST:
+#   Settings -> Devices & Services -> Entities -> filter by "Location"
+#   (or search "_room" in Developer Tools -> States) to get the exact
+#   sensor.<name>_room entity_id for each of your tracked devices. The
+#   entries below are illustrative examples based on device names mentioned
+#   earlier in this project (Car Keys, OTAG (1)/(2), UGREEN Finder Pro x2)
+#   -- replace/extend with your actual entity_ids for all ~10 tracked
+#   devices; every card below reads from the SAME list, so you only need to
+#   maintain it in one place (see the YAML anchor below).
+#
+# HOW TO ADD MORE ROOMS:
+#   Copy one of the per-room entity-filter cards, change its title and
+#   state_filter value to match the new room's exact name (must match
+#   *exactly* what the Location sensor shows as its state -- check
+#   Developer Tools -> States for the precise spelling/casing).
+
+views:
+  - title: Tags
+    path: tag-locations
+    icon: mdi:map-marker-radius
+    cards:
+      # --- Quick at-a-glance overview: every tag, icon + current state ---
+      # &all_tags marks this list so *all_tags below can reuse it without
+      # retyping -- only maintain this ONE list when you add/remove a device.
+      - type: glance
+        title: All Tags
+        show_name: true
+        show_state: true
+        entities: &all_tags
+          - sensor.car_keys_room
+          - sensor.otag_1_room
+          - sensor.otag_2_room
+          - sensor.ugreen_finder_pro_1_room
+          - sensor.ugreen_finder_pro_2_room
+          # ... add the rest of your ~10 tracked devices' _room entities here
+
+      # --- Away: anything not currently seen by any proxy ---
+      - type: entity-filter
+        entities: *all_tags
+        state_filter:
+          - not_home
+        show_empty: true
+        card:
+          type: entities
+          title: "🚗 Away"
+
+      # --- One card per known room -- copy this block to add more rooms ---
+      - type: entity-filter
+        entities: *all_tags
+        state_filter:
+          - "Living Room"
+        show_empty: false
+        card:
+          type: entities
+          title: "🛋️ Living Room"
+
+      - type: entity-filter
+        entities: *all_tags
+        state_filter:
+          - "Garage"
+        show_empty: false
+        card:
+          type: entities
+          title: "🚪 Garage"
+
+      # --- Optional: Google Find My "last known location" for FMDN tags,
+      #     shown regardless of home/away (see sensor.py -- this sensor
+      #     always reflects the latest Google-reported location, not just
+      #     while away). Uncomment and fill in with your FMDN devices'
+      #     _last_known_location entities if you want a Maps-link list on
+      #     this same view.
+      # - type: entities
+      #   title: "📍 Last Known (Google)"
+      #   entities:
+      #     - sensor.car_keys_last_known_location
+      #     - sensor.otag_1_last_known_location

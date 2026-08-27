@@ -1,0 +1,122 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Find Assistant",
+        "description": "Independent of Bermuda -- tracks FMDN, IRK, and static-MAC BLE devices across your ESPHome bluetooth_proxy rooms directly. Click Submit to create it; you'll add devices next, via Configure."
+      }
+    },
+    "abort": {
+      "already_configured": "Find Assistant is already set up -- use Configure to manage devices."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Find Assistant",
+        "description": "Choose what to configure. You can come back to this menu any time to add more devices or change settings.",
+        "menu_options": {
+          "import_fmdn": "Import/update FMDN devices.json",
+          "sync_google_account": "Link/relink a Google Find My account",
+          "sync_google_now": "Sync Google account now",
+          "add_irk": "Add a device by IRK",
+          "add_static_mac": "Add a device by static MAC",
+          "remove_device": "Remove a device",
+          "map_proxy_room": "Override a proxy's room",
+          "remove_proxy_room": "Remove a proxy room override",
+          "settings": "Settings"
+        }
+      },
+      "import_fmdn": {
+        "title": "Import FMDN devices.json",
+        "description": "Upload devices.json (from device_lister/list_devices.py), or paste its contents. This replaces the current FMDN device list.",
+        "data": {
+          "devices_json_file": "Upload devices.json",
+          "devices_json_text": "...or paste devices.json contents"
+        }
+      },
+      "sync_google_account": {
+        "title": "Link a Google Find My account",
+        "description": "Upload the secrets.json produced by a one-time, external GoogleFindMyTools login (see LICENSE_NOTICE.md), or paste its contents. Replaces your FMDN device list with a live pull from your account and keeps it synced automatically. If sync ever starts failing, redo that login and upload a fresh secrets.json here.\n\nPhones are added automatically as IRK devices where possible. LE Audio devices (headphones/earbuds) can't be tracked by this integration at all -- Google's API doesn't expose a usable key for them, so they're skipped.",
+        "data": {
+          "secrets_json_file": "Upload secrets.json",
+          "secrets_json_text": "...or paste secrets.json contents"
+        }
+      },
+      "sync_google_irk_added": {
+        "title": "Added as IRK devices",
+        "description": "Added/updated as IRK devices using their account_key: {names}. This works well for phones, but isn't guaranteed for locator tags -- if one never resolves anything, remove it later via \"Remove a device\". Submit to continue.",
+        "data": {}
+      },
+      "add_irk": {
+        "title": "Add a device by IRK",
+        "description": "For devices using standard Bluetooth address rotation (phones, some earbuds/headphones). Type the IRK with or without separators -- colons, dashes, spaces, or none are all fine.",
+        "data": {
+          "name": "Name",
+          "irk": "IRK (32 hex characters / 16 bytes)"
+        }
+      },
+      "add_static_mac": {
+        "title": "Add a device by static MAC",
+        "description": "For devices that never change their Bluetooth address. Pick from the advertisements currently visible to your proxies (strongest signal first), or type a MAC manually -- colons, dashes, spaces, or no separator are all accepted (AA:BB:CC:DD:EE:FF, AA BB CC DD EE FF, or AABBCCDDEEFF).",
+        "data": {
+          "name": "Name",
+          "mac": "MAC address"
+        }
+      },
+      "remove_device": {
+        "title": "Remove a device",
+        "description": "Select one or more devices to stop tracking -- listed as \"Name (id) -- location, seen ...\" (only while the integration is running). This also deletes each one's HA device entry and sensors.",
+        "data": {
+          "remove_names": "Devices to remove"
+        }
+      },
+      "map_proxy_room": {
+        "title": "Override a proxy's room",
+        "description": "Pick a proxy -- it shows its current room, auto-detected from its HA Area or overridden here. Leave the override blank to fall back to the auto-detected room.",
+        "data": {
+          "source": "Proxy",
+          "room": "Override room name (optional)"
+        }
+      },
+      "remove_proxy_room": {
+        "title": "Remove a proxy room name",
+        "description": "Select one or more room-name overrides to clear. That proxy then falls back to its automatically-detected Area or device name.",
+        "data": {
+          "remove_sources": "Mappings to remove"
+        }
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Optional: move each tracked device's Area to match its current proxy (off by default, since it relocates the device as it roams). The sync interval only applies once a Google account is linked -- 0 means manual sync only.",
+        "data": {
+          "update_location": "Update each device's Area automatically",
+          "google_sync_interval_hours": "Hours between automatic Google account resyncs (0 = manual only)"
+        }
+      }
+    },
+    "error": {
+      "no_devices_provided": "Upload a file or paste devices.json contents.",
+      "file_read_failed": "Couldn't read the uploaded file. Check Home Assistant's logs for details.",
+      "invalid_json": "That doesn't look like a valid devices.json -- check it's a JSON array of {name, identity_key, pair_date} objects, and that no two entries share the same identity_key. Check Home Assistant's logs for the specific problem.",
+      "invalid_irk": "IRK must be 32 hex characters (16 bytes) -- colons, dashes, and spaces between bytes are fine, e.g. 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF.",
+      "invalid_mac": "MAC must be 6 bytes of hex -- colons, dashes, and spaces between bytes are fine, e.g. AA:BB:CC:DD:EE:FF.",
+      "no_devices_selected": "Select at least one to remove, or go back if you didn't mean to.",
+      "no_secrets_provided": "Upload a file or paste secrets.json contents.",
+      "invalid_secrets": "That doesn't look like a valid secrets.json -- check it's the file produced by a completed GoogleFindMyTools login (needs fcm_credentials, username, aas_token, and owner_key).",
+      "sync_failed": "Couldn't sync with your Google account: {error}. If this persists, secrets.json may have expired -- redo the GoogleFindMyTools login and re-upload it."
+    },
+    "abort": {
+      "no_devices_to_remove": "No devices are configured yet.",
+      "no_proxy_rooms_to_remove": "No proxy room names are configured yet.",
+      "no_proxies_detected": "No Bluetooth proxies are currently online -- make sure at least one is connected, then try again.",
+      "sync_failed": "Couldn't sync with your Google account: {error}. If this persists, secrets.json may have expired -- redo the GoogleFindMyTools login and re-upload it."
+    }
+  },
+  "issues": {
+    "google_sync_failed": {
+      "title": "Google Find My account sync is failing",
+      "description": "The last automatic sync of your linked Google Find My account failed -- check Home Assistant's logs for the specific error. This is often caused by secrets.json expiring (password change, long dormancy, etc.). Redo the GoogleFindMyTools login flow and re-upload a fresh secrets.json via Find Assistant's Configure -> \"Link/relink a Google Find My account\"."
+    }
+  }
+}
