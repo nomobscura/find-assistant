@@ -53,11 +53,6 @@ Diagnostic entities per device: last known room (persists through
 advertising MAC address, last-seen timestamp, and the configured IRK
 (IRK devices only).
 
-**Not supported**: phones and LE Audio devices (earbuds/headphones)
-can't be tracked via Google account sync — Google's API doesn't expose
-a usable key for either category. A phone or IRK-capable device can
-still be added manually if you have its IRK.
-
 ## Installation
 
 1. Copy `custom_components/find_assistant/` into your Home Assistant
@@ -78,6 +73,32 @@ still be added manually if you have its IRK.
 No FMDN-specific firmware needed on the proxy side — plain ESPHome
 `bluetooth_proxy:` is enough, since all matching happens here in
 Python.
+
+## Known Issues
+
+- **Phones aren't synced automatically.** Google's account-sync API
+  doesn't expose a usable key for phones, so they never show up via
+  "Link/relink a Google Find My account." If you have the phone's own
+  Bluetooth IRK, add it manually via "Add a device by IRK."
+- **LE Audio devices (earbuds/headphones) aren't supported at all**,
+  manually or otherwise. Google's FMDN spec has these rotate their
+  address via ordinary Bluetooth pairing (SMP) with a phone rather than
+  `account_key` — a secret Google's API never exposes, so there's no
+  key this integration can use for them under any path.
+- **Some third-party tags report an implausible pair date** (seen with
+  OTAG-branded tags specifically, reporting mid-1970s), a firmware bug
+  in that brand's Fast Pair implementation — this can degrade
+  EID-matching reliability for those specific tags.
+- **Google account re-linking may be needed occasionally.** The cached
+  credential used for sync can't be refreshed headlessly from inside
+  Home Assistant; if Google invalidates it, you'll need to redo the
+  login flow externally and re-upload a fresh `secrets.json` via
+  "Link/relink a Google Find My account."
+- **Area mapping depends on your ESPHome proxy registering a Bluetooth
+  connection under its scanner address.** If your setup doesn't expose
+  that, a device's room falls back to showing the raw proxy identifier
+  instead of a friendly Area name — tracking still works, it's just
+  less pretty.
 
 ## Vibe-coded — how it was validated
 
