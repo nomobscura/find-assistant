@@ -54,21 +54,31 @@ function buildTrackersView(config, hass) {
 
   for (const deviceId of Object.keys(byDevice)) {
     const entityIds = byDevice[deviceId];
-    // The primary room/"Location" sensor is identified by NOT being a
-    // diagnostic entity, rather than by matching its entity_id suffix --
-    // its friendly name changed from "Room" to "Location" a while back, so
-    // entity_id is "_room" on entities created before that rename and
-    // "_location" on anything created since (HA freezes entity_id at
-    // first creation from whatever the name was then). It's the only
-    // non-diagnostic sensor this integration creates, so this is stable
-    // regardless of when the entity was actually created.
+    // Identified by domain/entity_category/device_class, deliberately NOT by
+    // matching an entity_id suffix -- confirmed live that HA appends "_2",
+    // "_3", etc. to entity_id whenever an orphaned entity (e.g. left over
+    // from an earlier rename) is already squatting the "clean" name, and a
+    // suffix-based match then silently fails to find that entity at all.
+    // Since only one of each of these exists per device, matching on
+    // properties that don't shift with renaming/collisions is both simpler
+    // and actually correct.
+    //
+    // Room/"Location" sensor: the only non-diagnostic sensor this
+    // integration creates.
     const roomEntityId = entityIds.find(
       (id) => id.startsWith("sensor.") && !entities[id].entity_category
     );
-    const lastSeenEntityId = entityIds.find((id) => id.endsWith("_last_seen"));
-    const ringEntityId = entityIds.find(
-      (id) => id.startsWith("button.") && id.endsWith("_ring")
-    );
+    // Last Seen/"Last Location Change" sensor: the only TIMESTAMP-class
+    // diagnostic sensor this integration creates (rssi/last_location/
+    // current_mac/irk are all plain string diagnostics).
+    const lastSeenEntityId = entityIds.find((id) => {
+      if (!id.startsWith("sensor.") || entities[id].entity_category !== "diagnostic") return false;
+      const state = states[id];
+      return state && state.attributes && state.attributes.device_class === "timestamp";
+    });
+    // Ring button: the only button-domain entity this integration creates
+    // per device (FMDN devices only) -- domain alone is unambiguous here.
+    const ringEntityId = entityIds.find((id) => id.startsWith("button."));
     if (!roomEntityId || !lastSeenEntityId) continue;
 
     const lastSeenState = states[lastSeenEntityId];
