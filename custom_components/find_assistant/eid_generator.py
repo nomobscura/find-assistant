@@ -30,17 +30,6 @@ N = 0x0100000000000000000001F4C8F927AED3CA752257
 # Generator point
 GX = 0x4A96B5688EF573284664698968C38BB913CBFC82
 GY = 0x23A628553168947D59DCC912042351377AC5FB32
-# Curve coefficients: y^2 = x^3 + A*x + B (mod P). A = -3 mod P is the standard
-# SEC-curve optimization already assumed by jacobian_double() above; B is only
-# needed to recover a point's y from its x (see fmdn_crypto.py's rx_to_ry) --
-# not needed for EID generation itself, which is why it wasn't defined until
-# fmdn_crypto.py needed it. Cross-checked against the independent `ecdsa`
-# PyPI package's own SECP160r1 definition (P/N/GX/GY above already matched it
-# exactly) rather than trusting a hand-transcribed constant for something
-# crypto-critical.
-A = (P - 3) % P
-B = 0x1C97BEFC54BD7A8B65ACF89F81D4D4ADC565FA45
-
 K = 10  # Lower bits to mask in timestamp
 ROTATION_PERIOD = 1024  # seconds (~17 minutes)
 
@@ -148,27 +137,6 @@ def jacobian_add(p1: JacobianPoint, p2: JacobianPoint) -> JacobianPoint:
     return JacobianPoint(X3, Y3, Z3)
 
 
-def scalar_multiply(k: int, point: JacobianPoint) -> JacobianPoint:
-    """Scalar multiplication using double-and-add."""
-    if k == 0 or point.is_infinity():
-        return INFINITY
-
-    k = k % N
-    if k == 0:
-        return INFINITY
-
-    result = INFINITY
-    addend = point
-
-    while k > 0:
-        if k & 1:
-            result = jacobian_add(result, addend)
-        addend = jacobian_double(addend)
-        k >>= 1
-
-    return result
-
-
 def to_affine_x(point: JacobianPoint) -> int:
     """Convert Jacobian point to affine x-coordinate: x = X / Z^2."""
     if point.is_infinity():
@@ -244,10 +212,7 @@ class EidGenerator:
         """
         Steps 1-4 of EID generation: derive the scalar r from the identity
         key and (masked) beacon time counter. Split out from generate_eid()
-        below because fmdn_crypto.py's location-report decryption needs this
-        exact same r (it's also R = r*G in that scheme -- an FMDN location
-        report's "sender" ephemeral key IS this window's EID point), without
-        needing the rest of EID generation.
+        below since it's a distinct, independently-useful step.
         """
         if len(identity_key) != 32:
             raise ValueError(f"Identity key must be 32 bytes, got {len(identity_key)}")

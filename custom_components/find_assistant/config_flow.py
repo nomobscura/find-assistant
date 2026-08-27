@@ -209,8 +209,7 @@ def _device_status_suffix(hass, entry_id: str, device_id: str) -> str:
     the running tracker (see presence.py) -- or "" if the integration isn't
     currently loaded/running (e.g. mid-setup) or the device isn't found
     there, so the caller's label just falls back to whatever it already had.
-    Live location/last-seen only, never persisted -- same reasoning as
-    RoomPresenceTracker.update_last_known_location."""
+    Live location/last-seen only, never persisted."""
     tracker = hass.data.get(DOMAIN, {}).get(entry_id)
     if tracker is None:
         return ""
@@ -374,12 +373,7 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
                     errors["base"] = "invalid_secrets"
                 else:
                     try:
-                        # locations isn't used here -- this step always ends in
-                        # _save() -> reload, which tears down the tracker
-                        # locations would otherwise be pushed into anyway.
-                        # __init__.py's own one-shot sync-on-setup repopulates
-                        # it fresh against the newly-built tracker right after.
-                        fmdn_devices, unmatched, _locations = await self.hass.async_add_executor_job(
+                        fmdn_devices, unmatched = await self.hass.async_add_executor_job(
                             GoogleFindMySession(secrets).list_devices
                         )
                     except Exception as err:
@@ -413,9 +407,7 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
         failure."""
         secrets = self.config_entry.data[CONF_GOOGLE_SECRETS]
         try:
-            # locations unused here -- see the matching comment in
-            # async_step_sync_google_account above.
-            fmdn_devices, unmatched, _locations = await self.hass.async_add_executor_job(
+            fmdn_devices, unmatched = await self.hass.async_add_executor_job(
                 GoogleFindMySession(secrets).list_devices
             )
         except Exception as err:

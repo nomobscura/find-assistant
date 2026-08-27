@@ -32,12 +32,9 @@ interactive GoogleFindMyTools login once and re-upload the fresh
 secrets.json via the options flow.
 """
 import binascii
-import hashlib
 import logging
 
-from . import fmdn_crypto
-from .crypto import decrypt_aes_gcm
-from .identity_key import is_mcu_tracker, retrieve_account_key, retrieve_identity_key
+from .identity_key import retrieve_account_key, retrieve_identity_key
 from .util import generate_random_uuid
 
 _LOGGER = logging.getLogger(__name__)
@@ -102,88 +99,6 @@ def validate_secrets(secrets: dict) -> None:
         bytes.fromhex(secrets["owner_key"])
     except ValueError as err:
         raise ValueError("secrets.json's owner_key is not valid hex") from err
-
-
-def create_google_maps_link(latitude: float, longitude: float) -> str:
-    """Same URL shape GoogleFindMyTools' own decrypt_locations.py uses."""
-    if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-        raise ValueError(f"Invalid latitude/longitude: {latitude}, {longitude}")
-    return f"https://www.google.com/maps/search/?api=1&query={latitude},{longitude}"
-
-
-def _decrypt_location(device, identity_key: bytes) -> dict | None:
-    """Returns the most recent successfully-decrypted location report for
-    one Nova device entry, or None if it has no location data at all (or
-    none of it was decryptable).
-
-    A device can carry BOTH an "own report" (found by a device signed into
-    the same Google account -- plain AES-GCM keyed by sha256(identity_key))
-    and "network"/crowdsourced reports (found by someone else's phone via
-    the FMDN network -- elliptic-curve derived key, see fmdn_crypto.py) at
-    once, each with its own timestamp. Reports are tried newest-first and
-    the first one that actually decrypts wins -- a corrupted/unparseable
-    newer report shouldn't discard a perfectly good older one.
-    """
-    from .proto import Common_pb2, DeviceUpdate_pb2
-
-    locations = device.information.locationInformation.reports.recentLocationAndNetworkLocations
-    reports = list(zip(locations.networkLocations, locations.networkLocationTimestamps))
-    if locations.HasField("recentLocation"):
-        reports.append((locations.recentLocation, locations.recentLocationTimestamp))
-
-    # Newest first -- see docstring.
-    reports.sort(key=lambda pair: pair[1].seconds, reverse=True)
-
-    for report, timestamp in reports:
-        try:
-            if report.status == Common_pb2.Status.SEMANTIC:
-                return {
-                    "type": "semantic",
-                    "name": report.semanticLocation.locationName,
-                    "time": timestamp.seconds,
-                    "is_own_report": None,
-                }
-
-            encrypted_report = report.geoLocation.encryptedReport
-            if not encrypted_report.publicKeyRandom:
-                # Own report: plain AES-GCM keyed by sha256(identity_key) -- same
-                # crypto already vendored for account-key/identity-key decryption.
-                plaintext = decrypt_aes_gcm(hashlib.sha256(identity_key).digest(), encrypted_report.encryptedLocation)
-            else:
-                # Crowdsourced report: the finder recorded what this device's own
-                # beacon_time_counter was at the moment they found it (0 for MCU
-                # trackers, which don't populate this meaningfully) -- NOT "now
-                # minus pair_date"; an old report needs the time window it was
-                # actually found in, not the current one.
-                beacon_time_counter = (
-                    0 if is_mcu_tracker(device.information.deviceRegistration)
-                    else report.geoLocation.deviceTimeOffset
-                )
-                plaintext = fmdn_crypto.decrypt(
-                    identity_key, encrypted_report.encryptedLocation,
-                    encrypted_report.publicKeyRandom, beacon_time_counter,
-                )
-
-            proto_location = DeviceUpdate_pb2.Location()
-            proto_location.ParseFromString(plaintext)
-            latitude = proto_location.latitude / 1e7
-            longitude = proto_location.longitude / 1e7
-
-            return {
-                "type": "geo",
-                "latitude": latitude,
-                "longitude": longitude,
-                "altitude": proto_location.altitude,
-                "accuracy": report.geoLocation.accuracy,
-                "maps_url": create_google_maps_link(latitude, longitude),
-                "time": timestamp.seconds,
-                "is_own_report": bool(encrypted_report.isOwnReport),
-            }
-        except Exception:
-            _LOGGER.debug("Could not decrypt one location report -- trying the next-newest one", exc_info=True)
-            continue
-
-    return None
 
 
 class GoogleFindMySession:
@@ -268,7 +183,7 @@ class GoogleFindMySession:
         return response.content.hex()
 
     def list_devices(self) -> tuple:
-        """Returns (devices, unmatched, locations):
+        """Returns (devices, unmatched):
           - devices: [{name, identity_key, pair_date, manufacturer, model},
             ...] for every account device with a usable identity_key
             EXCLUDING LE Audio devices (headphones/earbuds, see
@@ -300,22 +215,22 @@ class GoogleFindMySession:
             it's the standard mechanism Android/HA's own Private BLE Device
             integration already uses) as a classic Bluetooth IRK -- see
             config_flow.py's handling of this list for where it's shown.
-          - locations: {identity_key_hex: location_dict, ...} -- the most
-            recent successfully-decrypted Find My Device location report for
-            each device that has one (own report or crowdsourced network
-            report, whichever is newer -- see _decrypt_location()'s
-            docstring). Devices with no location data at all, or none that
-            decrypted successfully, are simply absent from this dict. Keyed
-            by identity_key (not a plain list index or name) so callers can
-            attribute a location back to the right tracked device even if
-            two devices share a display name -- compute_id(KIND_FMDN, {...})
-            on the matching devices[] entry gives the same id this
-            integration uses everywhere else.
 
         identity_key and account_key are decrypted independently -- a device
-        missing one doesn't skip the attempt at the other. Location decrypt
-        failures are logged and treated as "no location data" rather than
-        failing the whole sync -- they're the least essential part of it.
+        missing one doesn't skip the attempt at the other.
+
+        Does NOT fetch location reports: getting one from Google requires a
+        separate `nbe_execute_action` "locate" request per device plus a live
+        FCM push connection to receive the (async) result -- the plain
+        `nbe_list_devices` call this uses doesn't return them as a side
+        effect. An earlier revision assumed it did (based on reading
+        GoogleFindMyTools' decrypt_locations.py in isolation, without
+        checking how its input is actually obtained) and shipped a
+        last-known-location sensor that could never populate; removed once
+        live logs confirmed zero location data ever came back across many
+        real syncs. Doing this properly would mean adding the live FCM
+        listener this class deliberately doesn't have (see the module
+        docstring) -- a real feature, not a quick fix.
         """
         from .proto import DeviceUpdate_pb2
 
@@ -334,7 +249,6 @@ class GoogleFindMySession:
         owner_key = self._owner_key
         devices = []
         unmatched = []
-        locations = {}  # identity_key (hex) -> location dict, only for devices with decryptable data
         for device in device_list.deviceMetadata:
             name = device.userDefinedDeviceName
             registration = device.information.deviceRegistration
@@ -408,12 +322,4 @@ class GoogleFindMySession:
                 "model": registration.model or None,
             })
 
-            try:
-                location = _decrypt_location(device, identity_key)
-            except Exception:
-                _LOGGER.debug("Error extracting location reports for '%s'", name, exc_info=True)
-                location = None
-            if location is not None:
-                locations[identity_key.hex()] = location
-
-        return devices, unmatched, locations
+        return devices, unmatched

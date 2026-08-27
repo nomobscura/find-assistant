@@ -233,10 +233,6 @@ class DevicePresence:
         self.rssi = None
         self.current_mac = None  # the device's own current advertising address (rotates for fmdn/irk kinds)
         self.synced_mac = None  # last MAC successfully written to the Device registry (see _sync_device_connection)
-        self.last_known_location = None  # dict from google_findmy's Find My location reports, or None -- see
-        # RoomPresenceTracker.update_last_known_location. Independent of room/rssi/current_mac: comes from a
-        # Google account sync on its own cadence, not from a live BLE advertisement, and isn't cleared just
-        # because the device is currently seen locally -- it's "last known via Google", not "current room".
         self.updated_at = None  # last recompute() tick -- NOT "last seen"; recompute runs every sweep tick
         # regardless of whether this device was actually heard from. last_seen_at (below) is the real
         # "last seen" answer -- only ever set from an actual sighting, in note_sighting() itself.
@@ -397,23 +393,6 @@ class RoomPresenceTracker:
             device.entities.remove(entity)
         if device.primary_entity is entity:
             device.primary_entity = None
-
-    def update_last_known_location(self, device_id: str, location: dict | None) -> None:
-        """Called by __init__.py after a Google account sync decrypts a
-        device's Find My location report (see google_findmy/session.py's
-        list_devices() docstring) -- entirely separate from the room/rssi/
-        current_mac sighting pipeline above, since this arrives on a sync
-        cadence from Google's cloud API, not from a live local BLE
-        advertisement. Live state only, like everything else on
-        DevicePresence -- NOT persisted into the config entry (that's for
-        configuration, not fast-changing state), so it's lost across a
-        reload and only refreshed once the next sync runs."""
-        device = self.devices.get(device_id)
-        if device is None or device.last_known_location == location:
-            return
-        device.last_known_location = location
-        for entity in device.entities:
-            entity.async_write_ha_state()
 
     def _tag_device_entry(self, device: DevicePresence):
         """The tag's own Device-registry entry, via cached registry id (with

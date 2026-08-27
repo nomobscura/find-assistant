@@ -37,9 +37,6 @@ engine:
   over Bluetooth through your ESPHome proxy (requires
   `bluetooth_proxy: active: true` on that proxy, since ringing needs an
   active GATT connection, not just passive scanning).
-- **Last known location** — a diagnostic sensor with a Google Maps link
-  to the device's most recent location report, independent of its
-  current room/away state.
 - **Manufacturer/model** — automatically populated on the device page
   for devices synced from a Google account.
 - **Per-proxy Area override** — rename what room a specific proxy
@@ -102,9 +99,7 @@ exist, instead of a static YAML file you have to keep updating by hand.
 It groups trackers by their current room. Trackers that have never
 been seen at all are left out entirely. Each tracker shown gets a
 **Last Seen** row and, if it has one, a **Ring** button. Trackers that
-are currently away get their own section instead of a room, with an
-additional **Last Known Location** row (a Google Maps link) and a
-shared map plotting every away tracker that has coordinates.
+are currently away get their own section instead of a room.
 
 The integration registers its strategy JS as an extra frontend module
 automatically on startup (`frontend.add_extra_js_url`) — **no manual

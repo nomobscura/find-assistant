@@ -48,11 +48,10 @@ from .const import (
     CONF_STATIC_MAC_DEVICES,
     DEFAULT_GOOGLE_SYNC_INTERVAL_HOURS,
     DOMAIN,
-    KIND_FMDN,
     PRESENCE_UPDATE_INTERVAL_SECONDS,
 )
 from .google_findmy import GoogleFindMySession
-from .identity import compute_id, merge_fmdn_devices, merge_irk_candidates
+from .identity import merge_fmdn_devices, merge_irk_candidates
 from .presence import RoomPresenceTracker
 from .resolver import IdentityResolver
 
@@ -196,23 +195,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Optional: sync from a linked Google Find My account (see
     # config_flow.py's sync_google_account/sync_google_now steps, and
-    # google_findmy/ for the vendored account/API client). Two effects, both
-    # handled by the same _google_sync():
-    #   - device list (CONF_FMDN_DEVICES/CONF_IRK_DEVICES) -- only ever
-    #     adds/updates, never removes just because a sync returned a shorter
-    #     list (deliberate removal always stays a manual "Remove a device"
-    #     action), and only triggers a reload when something actually
-    #     changed, so a healthy account with nothing new to report doesn't
-    #     churn every tracked device's entities on every tick.
-    #   - each FMDN device's last-known Google location (live state on the
-    #     tracker, NOT persisted -- see
-    #     RoomPresenceTracker.update_last_known_location) -- pushed on
-    #     *every* sync regardless of whether the device list changed.
-    # Runs once immediately on every setup/reload (as a background task, so
-    # a slow/failed network call never blocks startup) rather than only ever
-    # firing on the timer -- otherwise last-known-location would sit stale
-    # (or blank, on a brand new link) for up to a full sync_interval_hours
-    # after every restart.
+    # google_findmy/ for the vendored account/API client). Updates device
+    # list (CONF_FMDN_DEVICES/CONF_IRK_DEVICES) -- only ever adds/updates,
+    # never removes just because a sync returned a shorter list (deliberate
+    # removal always stays a manual "Remove a device" action), and only
+    # triggers a reload when something actually changed, so a healthy
+    # account with nothing new to report doesn't churn every tracked
+    # device's entities on every tick. Runs once immediately on every
+    # setup/reload (as a background task, so a slow/failed network call
+    # never blocks startup) rather than only ever firing on the timer.
     if entry.data.get(CONF_GOOGLE_SECRETS):
 
         async def _google_sync(_now=None) -> None:
@@ -228,13 +219,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             # task, so anything escaping here would die silently with no
             # repair issue raised -- the one failure mode the user would have
             # no way to notice. The reachable case is a malformed entry in the
-            # *synced* response (missing identity_key), which makes compute_id
-            # / merge_fmdn_devices raise KeyError.
+            # *synced* response (missing identity_key), which makes
+            # merge_fmdn_devices raise KeyError.
             try:
-                fmdn_devices, unmatched, locations = await hass.async_add_executor_job(
+                fmdn_devices, unmatched = await hass.async_add_executor_job(
                     GoogleFindMySession(secrets).list_devices
                 )
-                await _apply_google_sync(current_entry, fmdn_devices, unmatched, locations)
+                await _apply_google_sync(current_entry, fmdn_devices, unmatched)
             except Exception:
                 _LOGGER.exception("Google account sync failed")
                 ir.async_create_issue(
@@ -246,19 +237,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             ir.async_delete_issue(hass, DOMAIN, "google_sync_failed")
 
-        async def _apply_google_sync(current_entry, fmdn_devices, unmatched, locations) -> None:
-            """Everything after a successful fetch: push locations into the
-            live tracker, merge the device lists, and reload only if the
-            stored lists actually changed. Split out from _google_sync purely
-            so its caller's try/except covers this work too."""
-            # Push into the *live* tracker immediately, independent of the
-            # device-list/reload logic below. If that logic decides to
-            # reload, this update is thrown away along with the old tracker
-            # instance -- harmless, the next sync repopulates a fresh one.
-            for device in fmdn_devices:
-                device_id = compute_id(KIND_FMDN, device)
-                tracker.update_last_known_location(device_id, locations.get(device["identity_key"]))
-
+        async def _apply_google_sync(current_entry, fmdn_devices, unmatched) -> None:
+            """Everything after a successful fetch: merge the device lists,
+            and reload only if the stored lists actually changed. Split out
+            from _google_sync purely so its caller's try/except covers this
+            work too."""
             # Devices with no usable identity_key (typically phones) but a
             # usable account_key are auto-added/updated as IRK devices --
             # same merge helper and caveats as config_flow.py's interactive

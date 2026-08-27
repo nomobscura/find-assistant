@@ -4,12 +4,15 @@
 // shows a "Last Seen" row plus a "Ring" button (when the device has one --
 // only FMDN devices do). Trackers that have never been seen at all (their
 // _last_seen sensor is still "unknown"/"unavailable") are skipped entirely,
-// since there's nothing meaningful to show for them yet.
+// since there's nothing meaningful to show for them yet. Trackers currently
+// away get their own section instead of a room.
 //
-// Trackers currently away get their own section instead of a room, with an
-// extra "Last Known Location" row (Google Maps link, FMDN devices only) and
-// a shared map card plotting every away tracker that has coordinates --
-// semantic reports (e.g. "Home") have no lat/long and just won't get a pin.
+// (There used to be a "Last Known Location" row + map for away trackers,
+// backed by a Google location-report sensor -- removed along with that
+// sensor once live testing confirmed it could never populate: getting a
+// real location from Google requires a live FCM push connection this
+// integration deliberately doesn't have, not something the plain device-list
+// sync call returns. See google_findmy/session.py's list_devices() docstring.)
 //
 // Registers BOTH a view strategy and a dashboard strategy (same underlying
 // logic) per HA's Lovelace strategy contract
@@ -38,8 +41,7 @@ function buildTrackersView(config, hass) {
 
   // Group this integration's entities by device_id first -- each tracked
   // device has a _room sensor, a _last_seen sensor, and (FMDN devices
-  // only) a ring button and a _last_known_location sensor, all sharing
-  // the same device_id.
+  // only) a ring button, all sharing the same device_id.
   const byDevice = {};
   for (const entityId of Object.keys(entities)) {
     const entry = entities[entityId];
@@ -66,9 +68,6 @@ function buildTrackersView(config, hass) {
     const ringEntityId = entityIds.find(
       (id) => id.startsWith("button.") && id.endsWith("_ring")
     );
-    const lastKnownLocationEntityId = entityIds.find((id) =>
-      id.endsWith("_last_known_location")
-    );
     if (!roomEntityId || !lastSeenEntityId) continue;
 
     const lastSeenState = states[lastSeenEntityId];
@@ -92,7 +91,6 @@ function buildTrackersView(config, hass) {
       name: trackerName,
       lastSeenEntityId,
       ringEntityId,
-      lastKnownLocationEntityId: isAway ? lastKnownLocationEntityId : undefined,
     });
   }
 
@@ -106,28 +104,12 @@ function buildTrackersView(config, hass) {
   roomNames.forEach((roomName) => {
     const trackers = rooms[roomName].slice().sort((a, b) => a.name.localeCompare(b.name));
 
-    // Shared map for the Away section, plotting every away tracker that
-    // has a geo (lat/long) location report -- the map card silently skips
-    // any entity without those attributes, so semantic-only reports
-    // (e.g. "Home") just don't get a pin rather than causing an error.
-    if (roomName === awayTitle) {
-      const mapEntities = trackers
-        .map((t) => t.lastKnownLocationEntityId)
-        .filter(Boolean);
-      if (mapEntities.length > 0) {
-        cards.push({ type: "map", entities: mapEntities });
-      }
-    }
-
     const rows = [];
     trackers.forEach((tracker) => {
       rows.push({ type: "section", label: tracker.name });
       rows.push({ entity: tracker.lastSeenEntityId, name: "Last Seen" });
       if (tracker.ringEntityId) {
         rows.push({ entity: tracker.ringEntityId, name: "Ring" });
-      }
-      if (tracker.lastKnownLocationEntityId) {
-        rows.push({ entity: tracker.lastKnownLocationEntityId, name: "Last Known Location" });
       }
     });
     cards.push({

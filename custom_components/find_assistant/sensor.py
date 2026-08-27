@@ -10,8 +10,6 @@ Settings -> Devices & Services -> Find Assistant -> "Mail Key"):
   - sensor.<name>_last_seen   diagnostic: timestamp of the last genuine sighting by any proxy
                                       (a genuine sighting, unlike the internal recompute timestamp)
   - sensor.<name>_irk         diagnostic: the configured IRK, IRK-kind devices only
-  - sensor.<name>_last_known_location diagnostic: most recent Google Find My location report
-                                      (own or crowdsourced, whichever is newer), FMDN-kind devices only
 
 Entity_id/unique_id suffixes ("_room"/"_last_room") are unchanged from before this was
 renamed -- only the displayed friendly name changed ("Room" -> "Location"). HA generates
@@ -61,7 +59,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, KIND_FMDN, KIND_IRK
+from .const import DOMAIN, KIND_IRK
 from .presence import RoomPresenceTracker
 
 
@@ -79,10 +77,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
             irk = tracker.resolver.irk_for(device_id)
             if irk is not None:
                 entities.append(DeviceIrkSensor(tracker, device_id, irk))
-        if device.kind == KIND_FMDN:
-            # Only real FMDN trackers carry identity_key-derived Google Find
-            # My location reports -- see google_findmy/session.py.
-            entities.append(DeviceLastKnownLocationSensor(tracker, device_id))
     async_add_entities(entities)
 
 
@@ -249,47 +243,3 @@ class DeviceIrkSensor(_BaseDeviceSensor):
     @property
     def native_value(self):
         return self._irk
-
-
-class DeviceLastKnownLocationSensor(_BaseDeviceSensor):
-    """Only created for KIND_FMDN devices (see async_setup_entry above) --
-    only real Find My Device Network trackers carry identity_key-derived
-    location reports; phones/IRK/static-MAC devices never do.
-
-    Reflects the most recent successfully-decrypted Google Find My location
-    report for this device (an "own" report from one of your own signed-in
-    devices, or a crowdsourced "network" report from someone else's phone --
-    whichever is newer), refreshed on every Google account sync -- see
-    google_findmy/session.py's list_devices() and __init__.py's sync wiring.
-
-    Deliberately NOT tied to whether the device is currently seen locally:
-    this always reflects the latest Google-reported location regardless of
-    current room/away state, since "where Google last saw it" and "where a
-    local proxy currently sees it" are two independent, both-useful facts.
-    Live state only -- lost across a reload, refreshed by the next sync --
-    see RoomPresenceTracker.update_last_known_location.
-    """
-
-    _attr_icon = "mdi:map-marker-question"
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-
-    def __init__(self, tracker: RoomPresenceTracker, device_id: str):
-        super().__init__(tracker, device_id, "last_known_location", "Last Known Location")
-
-    @property
-    def native_value(self):
-        location = self._device.last_known_location
-        if location is None:
-            return None
-        # A semantic report (e.g. "Home") has no coordinates to link to --
-        # fall back to showing the name itself as the state in that case.
-        return location["name"] if location["type"] == "semantic" else location["maps_url"]
-
-    @property
-    def extra_state_attributes(self):
-        location = self._device.last_known_location
-        if location is None:
-            return {}
-        attrs = dict(location)
-        attrs["time"] = datetime.fromtimestamp(attrs["time"], tz=timezone.utc).isoformat()
-        return attrs

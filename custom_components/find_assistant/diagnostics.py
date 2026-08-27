@@ -88,7 +88,6 @@ def _device_snapshot(device: DevicePresence) -> dict[str, Any]:
             "synced_mac": device.synced_mac,
             "winning_source": device.winning_source,
             "updated_at": device.updated_at,
-            "last_known_location": device.last_known_location,
             "sightings": device.sightings,
             "entity_ids": [e.entity_id for e in device.entities],
         },
