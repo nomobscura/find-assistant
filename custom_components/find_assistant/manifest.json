@@ -3,7 +3,7 @@
   "name": "Find Assistant",
   "codeowners": [],
   "config_flow": true,
-  "dependencies": ["bluetooth", "file_upload"],
+  "dependencies": ["bluetooth", "file_upload", "frontend"],
   "documentation": "https://github.com/nomobscura/find-assistant",
   "iot_class": "local_push",
   "requirements": [

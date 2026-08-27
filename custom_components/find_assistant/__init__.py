@@ -20,6 +20,7 @@ import re
 from datetime import timedelta
 from pathlib import Path
 
+from homeassistant.components.frontend import add_extra_js_url
 from homeassistant.components.http import StaticPathConfig
 
 try:
@@ -86,12 +87,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Serve this integration's optional Lovelace strategy JS (groups trackers
     # by room in a dashboard view, no static YAML to maintain by hand -- see
-    # www/find-assistant-strategy.js). Users still need to add it once as a
-    # dashboard Resource (Settings -> Dashboards -> Resources); there's no
-    # stable public API for a custom integration to register that for them.
-    # Guarded with a hass.data flag since async_setup_entry can re-run on
-    # reload (e.g. after a Google sync detects device-list changes), and
-    # aiohttp rejects registering the same url_path twice.
+    # www/find-assistant-strategy.js), and register it as an extra frontend
+    # module so it loads on every page automatically -- no manual "Add
+    # Resource" step in Settings -> Dashboards -> Resources required.
+    # add_extra_js_url() is idempotent (backed by a frozenset), but the
+    # static-path registration below isn't -- aiohttp rejects registering the
+    # same url_path twice -- so both are guarded with a hass.data flag since
+    # async_setup_entry can re-run on reload (e.g. after a Google sync
+    # detects device-list changes).
     if not hass.data.get(f"{DOMAIN}_www_registered"):
         await hass.http.async_register_static_paths(
             [StaticPathConfig(
@@ -100,6 +103,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 cache_headers=False,
             )]
         )
+        add_extra_js_url(hass, f"/{DOMAIN}_static/find-assistant-strategy.js")
         hass.data[f"{DOMAIN}_www_registered"] = True
 
     # Pre-create each tracked device's HA Device-registry entry *before*
