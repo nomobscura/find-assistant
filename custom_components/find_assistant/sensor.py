@@ -34,9 +34,13 @@ Note on the IRK sensor: its value is the plaintext secret you configured for
 that device. It's genuinely useful for confirming which IRK is tied to which
 device, but it's still a real entity state -- it'll show up in Developer
 Tools/History like any other sensor, and in Recorder's database unless you
-explicitly exclude it there. If that's a concern, exclude
-`sensor.<name>_irk` via Settings -> System -> ... -> Recorder, or the
-`recorder: exclude:` YAML config.
+explicitly exclude it there. Hidden from the device page by default
+(entity_registry_visible_default=False) for exactly this reason -- unhide it
+from Settings -> Devices & Services -> Entities if you need to check it.
+Still fully created either way (state/history both work normally, hidden
+just affects UI display) -- if Recorder exposure specifically is a concern,
+separately exclude `sensor.<name>_irk` via Settings -> System -> ... ->
+Recorder, or the `recorder: exclude:` YAML config.
 
 RSSI/last-room/current-MAC used to be attributes bundled on the Location sensor
 alone -- promoted to their own entities so they're individually usable in
@@ -244,10 +248,18 @@ class DeviceIrkSensor(_BaseDeviceSensor):
     """Only created for KIND_IRK devices (see async_setup_entry above). The
     IRK is configured, not derived -- it never changes at runtime, so this
     just echoes back the value resolver.py resolved this device's cipher
-    from, for easy visual confirmation of which IRK is tied to which device."""
+    from, for easy visual confirmation of which IRK is tied to which device.
+
+    Hidden by default (entity_registry_visible_default=False) -- it's a
+    real secret value, not something that belongs on the device page by
+    default just from adding the device. Still fully created/functional
+    (state, history, etc. all work normally); the user can unhide it from
+    Settings -> Devices & Services -> Entities any time they actually need
+    to check it, same as the module docstring's note on Recorder exclusion."""
 
     _attr_icon = "mdi:key"
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_visible_default = False
 
     def __init__(self, tracker: RoomPresenceTracker, device_id: str, irk: str):
         super().__init__(tracker, device_id, "irk", "IRK")
