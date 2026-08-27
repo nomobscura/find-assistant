@@ -120,7 +120,13 @@ function buildTrackersView(config, hass) {
       rows.push({ type: "section", label: tracker.name });
       rows.push({ entity: tracker.lastSeenEntityId, name: "Last Location Change" });
       if (tracker.ringEntityId) {
-        rows.push({ entity: tracker.ringEntityId, name: "Ring" });
+        // Deliberately no `name:` override here -- the ring button's own
+        // name property toggles between "<device> Ring" and "<device> Stop
+        // Ringing" depending on its live state (see button.py). Pinning a
+        // static "Ring" label here, as an earlier version of this file did,
+        // silently overrides that and makes the row never visibly reflect
+        // the toggle even though the icon (not overridden) still did.
+        rows.push({ entity: tracker.ringEntityId });
       }
     });
     cards.push({
