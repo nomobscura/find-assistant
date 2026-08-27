@@ -55,6 +55,17 @@ advertising MAC address, last-seen timestamp, and the configured IRK
 
 ## Installation
 
+**Prerequisite for Google Find My account sync**: this integration only
+*reads* an already-authenticated session — it can't perform Google's
+interactive login itself. Before linking an account (or importing a
+devices.json), run
+[GoogleFindMyTools](https://github.com/leonboe1/GoogleFindMyTools) once
+on a separate machine/environment to complete that login; it produces a
+`secrets.json` containing the cached credentials (`aas_token`,
+`owner_key`, etc.) that this integration's "Link/relink a Google Find
+My account" step expects you to upload. Not needed if you're only using
+IRK or static-MAC devices.
+
 1. Copy `custom_components/find_assistant/` into your Home Assistant
    config directory (`config/custom_components/find_assistant/`).
 2. Restart Home Assistant.
@@ -63,9 +74,13 @@ advertising MAC address, last-seen timestamp, and the configured IRK
 4. **Settings → Devices & Services → Find Assistant → Configure** to
    add devices:
    - **Link/relink a Google Find My account** — sync FMDN devices
-     automatically (recommended).
+     automatically (recommended; needs `secrets.json` from
+     GoogleFindMyTools, see prerequisite above).
    - **Import/update FMDN devices.json** — one-time/manual alternative
-     if you'd rather not link an account.
+     if you'd rather not link an account: a JSON file of
+     `{name, identity_key, pair_date}` entries per device, derived from
+     the same GoogleFindMyTools session (not a stock export format —
+     you'd need your own script against its decrypted device data).
    - **Add a device by IRK** — name + 32-hex-char (16-byte) IRK.
    - **Add a device by static MAC** — name + `AA:BB:CC:DD:EE:FF`.
    - **Remove a device** — multi-select removal across all kinds.
