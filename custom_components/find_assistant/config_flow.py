@@ -28,6 +28,7 @@ from .const import (
     CONF_GOOGLE_SYNC_INTERVAL_HOURS,
     CONF_IRK_DEVICES,
     CONF_PROXY_ROOMS,
+    CONF_PROXY_RSSI_OFFSETS,
     CONF_STATIC_MAC_DEVICES,
     CONF_UPDATE_LOCATION,
     DEFAULT_GOOGLE_SYNC_INTERVAL_HOURS,
@@ -53,6 +54,7 @@ CONF_REMOVE_NAMES = "remove_names"
 CONF_PROXY_SOURCE = "source"
 CONF_ROOM_NAME = "room"
 CONF_REMOVE_PROXY_SOURCES = "remove_sources"
+CONF_RSSI_OFFSET = "offset"
 
 _MAC_HEX_RE = re.compile(r"^[0-9A-Fa-f]{12}$")
 _FMDN_REQUIRED_KEYS = ("name", "identity_key", "pair_date")
@@ -284,6 +286,7 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
             "remove_device",
             "map_proxy_room",
             "remove_proxy_room",
+            "set_proxy_rssi_offset",
             "settings",
         ]
         return self.async_show_menu(step_id="init", menu_options=menu_options)
@@ -717,6 +720,60 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
             ),
         })
         return self.async_show_form(step_id="remove_proxy_room", data_schema=schema, errors=errors)
+
+    async def async_step_set_proxy_rssi_offset(self, user_input=None):
+        """
+        Pick from currently-known proxies and set a dBm offset applied to
+        every RSSI reading from it before room-picking compares proxies
+        against each other -- compensates for proxy hardware with a
+        genuinely stronger/weaker radio than the others (e.g. a Shelly vs
+        an ESP32) systematically winning/losing regardless of actual
+        distance. Entering 0 clears any existing offset for that proxy.
+        """
+        current_offsets = {
+            m["source"].upper(): m["offset"] for m in self.config_entry.data.get(CONF_PROXY_RSSI_OFFSETS, [])
+        }
+
+        scanners = bluetooth.async_current_scanners(self.hass)
+        if not scanners:
+            return self.async_abort(reason="no_proxies_detected")
+
+        options = []
+        for scanner in scanners:
+            effective_room, _area_id, _proxy_device_id, friendly, _area_name = _describe_source(
+                self.hass, scanner.source,
+                {
+                    **{m["source"].upper(): m["room"] for m in self.config_entry.data.get(CONF_DETECTED_PROXY_ROOMS, [])},
+                    **{m["source"].upper(): m["room"] for m in self.config_entry.data.get(CONF_PROXY_ROOMS, [])},
+                },
+            )
+            offset = current_offsets.get(scanner.source.upper())
+            label = f"{effective_room} ({friendly})"
+            label = f"{label} -- offset {offset:+d} dBm" if offset else f"{label} -- no offset"
+            options.append(selector.SelectOptionDict(value=scanner.source, label=label))
+
+        errors = {}
+
+        if user_input is not None:
+            source = user_input[CONF_PROXY_SOURCE].upper()
+            offset = int(user_input[CONF_RSSI_OFFSET])
+            data = dict(self.config_entry.data)
+            offsets = [m for m in data.get(CONF_PROXY_RSSI_OFFSETS, []) if m["source"] != source]
+            if offset:
+                offsets.append({"source": source, "offset": offset})
+            # else: 0 removes any existing offset for this proxy.
+            data[CONF_PROXY_RSSI_OFFSETS] = offsets
+            return await self._save(data)
+
+        schema = vol.Schema({
+            vol.Required(CONF_PROXY_SOURCE): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            ),
+            vol.Required(CONF_RSSI_OFFSET, default=0): selector.NumberSelector(
+                selector.NumberSelectorConfig(min=-40, max=40, step=1, mode=selector.NumberSelectorMode.BOX)
+            ),
+        })
+        return self.async_show_form(step_id="set_proxy_rssi_offset", data_schema=schema, errors=errors)
 
     async def async_step_settings(self, user_input=None):
         if user_input is not None:

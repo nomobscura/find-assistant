@@ -24,6 +24,7 @@
           "remove_device": "Remove a device",
           "map_proxy_room": "Override a proxy's room",
           "remove_proxy_room": "Remove a proxy room override",
+          "set_proxy_rssi_offset": "Adjust a proxy's RSSI offset",
           "settings": "Settings"
         }
       },
@@ -84,6 +85,14 @@
         "description": "Select one or more room-name overrides to clear. That proxy then falls back to its automatically-detected Area or device name.",
         "data": {
           "remove_sources": "Mappings to remove"
+        }
+      },
+      "set_proxy_rssi_offset": {
+        "title": "Adjust a proxy's RSSI offset",
+        "description": "Different proxy hardware has genuinely different radio sensitivity (e.g. a Shelly vs an ESP32), which can make one proxy's readings systematically stronger than another's even when a device is actually closer to the other one. Pick a proxy and set a dBm adjustment applied to every reading from it before rooms are compared -- positive makes it win more often, negative less. Enter 0 to clear an existing offset.",
+        "data": {
+          "source": "Proxy",
+          "offset": "RSSI offset (dBm)"
         }
       },
       "settings": {

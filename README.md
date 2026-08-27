@@ -41,12 +41,16 @@ engine:
   for devices synced from a Google account.
 - **Per-proxy Area override** — rename what room a specific proxy
   reports without needing to rename its Home Assistant Area.
+- **Per-proxy RSSI offset** — calibrate for proxy hardware with a
+  genuinely stronger/weaker radio than others (e.g. a Shelly vs an
+  ESP32), which can otherwise make it systematically "win" room-picking
+  even when a device is actually closer to a different proxy.
 - **Auto-generating dashboard view** — a Lovelace strategy that groups
   trackers by current room automatically (no static YAML to keep in
-  sync as devices come and go), with a separate "Away" section
-  including a map. See [Dashboard](#dashboard) below. A static
-  alternative, [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml),
-  is also included.
+  sync as devices come and go), with away trackers in a separate
+  section. See [Dashboard](#dashboard) below. A static alternative,
+  [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml), is
+  also included.
 
 Diagnostic entities per device: last known room (persists through
 "away"), signal strength (RSSI) and nearby-proxy candidates, current

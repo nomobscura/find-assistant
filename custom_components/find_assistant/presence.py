@@ -25,6 +25,7 @@ from homeassistant.helpers import device_registry as dr
 from .const import (
     CONF_DETECTED_PROXY_ROOMS,
     CONF_PROXY_ROOMS,
+    CONF_PROXY_RSSI_OFFSETS,
     CONF_UPDATE_LOCATION,
     DEFAULT_STALE_SECONDS,
     DOMAIN,
@@ -327,6 +328,11 @@ class RoomPresenceTracker:
         self.detected_proxy_rooms = {
             m["source"].upper(): m["room"] for m in entry.data.get(CONF_DETECTED_PROXY_ROOMS, [])
         }
+        # Per-proxy dBm calibration -- see CONF_PROXY_RSSI_OFFSETS's docstring.
+        # Applied in _note_sighting() before a reading is stored/compared.
+        self.proxy_rssi_offsets = {
+            m["source"].upper(): m["offset"] for m in entry.data.get(CONF_PROXY_RSSI_OFFSETS, [])
+        }
         self.update_location = entry.data.get(CONF_UPDATE_LOCATION, False)  # gates the device-registry mutations
         self.devices = {
             device_id: DevicePresence(
@@ -428,6 +434,13 @@ class RoomPresenceTracker:
         prev_mac = device.current_mac
         is_first_from_this_proxy = source not in device.sightings
         room_name, area_id, proxy_device_id, _friendly, area_name = self._describe_source_cached(source)
+        # Per-proxy calibration -- see CONF_PROXY_RSSI_OFFSETS's docstring in
+        # const.py. Applied here (not in DevicePresence.note_sighting itself)
+        # so the offset only ever touches a genuine reading, never the
+        # None -> -127 "unknown strength" fallback that method applies on its
+        # own -- there's nothing meaningful to calibrate about "no reading".
+        if rssi is not None:
+            rssi = rssi + self.proxy_rssi_offsets.get(source.upper(), 0)
         device.note_sighting(source, rssi, address, room_name, area_id, proxy_device_id)
         if area_name is not None:
             self._maybe_persist_detected_room(source, area_name)

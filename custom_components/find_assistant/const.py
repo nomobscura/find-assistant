@@ -26,6 +26,17 @@ CONF_PROXY_ROOMS = "proxy_rooms"
 # overwrote deliberate user overrides on the very next sighting.
 CONF_DETECTED_PROXY_ROOMS = "detected_proxy_rooms"
 
+# List of {"source": "AA:BB:CC:DD:EE:FF", "offset": -8} -- a per-proxy dBm
+# adjustment applied to every RSSI reading from that proxy before it's stored/
+# compared in recompute()'s "strongest RSSI wins" room picking. Different
+# proxy hardware has genuinely different radio sensitivity (e.g. a Shelly's
+# antenna vs an ESP32's), so two proxies equidistant from the same device can
+# report meaningfully different raw RSSI -- biasing room selection toward
+# whichever proxy's radio just happens to run "hotter", not whichever one is
+# actually closer. A positive offset makes that proxy's readings win more
+# often; negative makes them win less. 0/absent means no adjustment.
+CONF_PROXY_RSSI_OFFSETS = "proxy_rssi_offsets"
+
 # Opt-in: when True, also assign each tracked device's own HA Device-registry
 # entry to the Area of whichever proxy is currently winning. Off by default --
 # this is the one mutation that actually *relocates* the device, so it stays
