@@ -298,7 +298,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             data[CONF_FMDN_DEVICES] = new_fmdn_devices
             data[CONF_IRK_DEVICES] = new_irk_devices
             hass.config_entries.async_update_entry(current_entry, data=data)
-            await hass.config_entries.async_reload(current_entry.entry_id)
+            # Deliberately NOT awaited on the entry's own background task (the
+            # one-shot initial sync is entry.async_create_background_task-tracked,
+            # specifically so HA cancels it if some *other* reload happens
+            # mid-fetch -- see that call site's comment). Awaiting a reload of
+            # THIS SAME entry from within a task tied to THIS SAME entry's
+            # unload lifecycle is a real deadlock, confirmed live: the reload's
+            # own unload phase tries to cancel every background task tied to
+            # the entry, including the one currently suspended waiting for
+            # that very reload to finish -- the entry got stuck in
+            # ConfigEntryState.UNLOAD_IN_PROGRESS forever, and every later
+            # reload attempt (including the user's own manual "sync now")
+            # failed with OperationNotAllowed. hass.async_create_task() is
+            # explicitly independent of any config entry's lifecycle, so the
+            # reload can proceed without racing its own trigger's cancellation.
+            hass.async_create_task(
+                hass.config_entries.async_reload(current_entry.entry_id),
+                name=f"{DOMAIN}_google_sync_reload",
+            )
 
         # Tied to the config entry so HA cancels it on unload -- an untracked
         # hass.async_create_task() could otherwise complete after a reload
