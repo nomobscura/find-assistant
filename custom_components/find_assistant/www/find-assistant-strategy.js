@@ -51,8 +51,16 @@ function buildTrackersView(config, hass) {
 
   for (const deviceId of Object.keys(byDevice)) {
     const entityIds = byDevice[deviceId];
+    // The primary room/"Location" sensor is identified by NOT being a
+    // diagnostic entity, rather than by matching its entity_id suffix --
+    // its friendly name changed from "Room" to "Location" a while back, so
+    // entity_id is "_room" on entities created before that rename and
+    // "_location" on anything created since (HA freezes entity_id at
+    // first creation from whatever the name was then). It's the only
+    // non-diagnostic sensor this integration creates, so this is stable
+    // regardless of when the entity was actually created.
     const roomEntityId = entityIds.find(
-      (id) => id.startsWith("sensor.") && id.endsWith("_room")
+      (id) => id.startsWith("sensor.") && !entities[id].entity_category
     );
     const lastSeenEntityId = entityIds.find((id) => id.endsWith("_last_seen"));
     const ringEntityId = entityIds.find(
