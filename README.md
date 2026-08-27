@@ -1,148 +1,91 @@
-# Find Assistant — independent multi-strategy BLE room presence
+# Find Assistant — Home Assistant integration for BLE room presence
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="custom_components/find_assistant/brand/dark_logo@2x.png 2x, custom_components/find_assistant/brand/dark_logo.png 1x">
   <img alt="Find Assistant logo" src="custom_components/find_assistant/brand/logo.png" srcset="custom_components/find_assistant/brand/logo@2x.png 2x, custom_components/find_assistant/brand/logo.png 1x" width="128">
 </picture>
 
-> These live in `custom_components/find_assistant/brand/` (icon + logo,
-> light + dark, plus `@2x` variants) -- as of Home Assistant 2026.3.0's
-> Brands Proxy API, a custom integration's own `brand/` folder is read
-> directly by HA's UI (Settings → Devices & Services, the config-flow
-> header, device pages), no submission to the external
-> [`home-assistant/brands`](https://github.com/home-assistant/brands) repo
-> required. That external repo is only relevant if you want this
-> integration's icon to show up in "Add Integration" search results
-> *before* install (e.g. once/if this is listed on HACS) -- not needed
-> for a locally-installed integration like this one.
-> (`logo.png`/`logo@2x.png` light, `dark_logo.png`/`dark_logo@2x.png` dark).
+A custom Home Assistant integration for room-level Bluetooth presence
+tracking — no Bermuda dependency, no third-party app, no cloud polling
+beyond an occasional Google account sync. Works with any number of
+ESPHome `bluetooth_proxy` devices, one per room.
 
-A native Home Assistant integration for room-level BLE presence that does
-**not** depend on Bermuda at all. Tracks devices identified three
-different ways, all feeding one shared engine:
+Tracks devices identified three different ways, all feeding one shared
+engine:
 
-- **FMDN** — Google Find My Device Network EID matching (`identity_key` +
-  `pair_date` from `device_lister/list_devices.py`'s `devices.json`), the
-  same crypto used throughout this repo.
+- **FMDN** — Google Find My Device Network EID matching, for Google
+  Find My-compatible tags (Pebblebee, Chipolo, etc.).
 - **IRK** — standard Bluetooth Core Spec resolvable-private-address
-  resolution, for devices that rotate their MAC using a real Identity
-  Resolving Key (phones via `private_ble_device`-style IRKs, or
-  potentially FMDN LE Audio devices via `account_key` — see
-  [`../room_presence/BERMUDA.md`](../room_presence/BERMUDA.md) for why
-  that's plausible for LE Audio devices specifically but not locator tags).
-- **static MAC** — devices that never rotate their address at all.
+  resolution, for devices with a known Identity Resolving Key (e.g.
+  phones).
+- **Static MAC** — devices that never rotate their Bluetooth address.
 
-Each resolved device gets a `sensor.<name>_room` entity showing whichever
-proxy last heard it with the strongest signal (mapped to that proxy's HA
-Area where possible), with `rssi`/`candidates`/`kind` as attributes.
+## Capabilities
 
-## Why build this instead of using `../ha_integration/`
+- **Room-level presence** — each device gets a `sensor.<name>_room`
+  entity (displayed as "*Location*") showing whichever proxy last heard
+  it with the strongest signal, mapped to that proxy's HA Area where
+  possible.
+- **Google Find My account sync** — link an account once and FMDN
+  devices stay in sync automatically (interval configurable, manual
+  resync always available). Devices are only ever added or updated by
+  sync, never silently removed.
+- **Manual device management** — add a device by IRK or static MAC,
+  remove devices, all through the integration's Configure menu — no
+  YAML editing required.
+- **Ring the tag** — a per-device button that rings a physical FMDN tag
+  over Bluetooth through your ESPHome proxy (requires
+  `bluetooth_proxy: active: true` on that proxy, since ringing needs an
+  active GATT connection, not just passive scanning).
+- **Last known location** — a diagnostic sensor with a Google Maps link
+  to the device's most recent location report, independent of its
+  current room/away state.
+- **Manufacturer/model** — automatically populated on the device page
+  for devices synced from a Google account.
+- **Per-proxy Area override** — rename what room a specific proxy
+  reports without needing to rename its Home Assistant Area.
+- **Ready-made dashboard** — [`dashboards/tag_locations.yaml`](dashboards/tag_locations.yaml),
+  a full Lovelace config grouping tracked devices by current room plus
+  an "Away" section.
 
-`../ha_integration/` (`fmdn_bermuda_bridge`) works, but getting there
-required threading data through Bermuda's undocumented internal
-assumptions (its `coordinator.py` discovery sweep, its MAC-casing
-handling, its scanner/source model) on top of HA's own Bluetooth API —
-real, hard-won fragility documented in that project's README. This project
-trades Bermuda's more sophisticated distance/smoothing math for a much
-simpler, fully self-contained, fully observable system: no synthetic
-advertisement injection, no dependency on a third-party integration's
-internals, entities visible immediately in Developer Tools → States.
+Diagnostic entities per device: last known room (persists through
+"away"), signal strength (RSSI) and nearby-proxy candidates, current
+advertising MAC address, last-seen timestamp, and the configured IRK
+(IRK devices only).
 
-See the "pros and cons" discussion earlier in this project's history for
-the full trade-off reasoning — in short: worth it if you don't need
-Bermuda's calibrated distance estimation or a unified dashboard alongside
-other Bermuda-tracked things (phones, etc.), since IRK/static-MAC devices
-already have perfectly good native HA support (Private BLE Device,
-Bermuda's own discovery) that this project doesn't try to replace, only
-consolidate under one roof if you want everything in one place.
-
-## Upgrading from "BLE Room Presence" (pre-0.5.0)
-
-As of 0.5.0-beta this integration's domain changed from `ble_room_presence`
-to `find_assistant` (folder renamed to match). If you already have this
-integration set up and don't run the migration below, Home Assistant will
-show it as missing on next restart and every entity/device tied to it will
-orphan -- you'd have to remove and re-add it from scratch.
-
-1. **Stop Home Assistant.**
-2. Run [`migrate_domain_rename.py`](migrate_domain_rename.py) against your
-   config directory (the one containing `.storage/`):
-   ```
-   python migrate_domain_rename.py --config-dir /path/to/homeassistant/config --dry-run
-   python migrate_domain_rename.py --config-dir /path/to/homeassistant/config
-   ```
-   It rewrites the domain in `core.config_entries`, `core.entity_registry`,
-   and `core.device_registry`, backing up each file first
-   (`*.pre_find_assistant_migration.bak`). `entity_id`s are left untouched,
-   so dashboards, automations, and recorder history keep working.
-3. Replace `custom_components/ble_room_presence/` with
-   `custom_components/find_assistant/` (delete the old folder, copy in the
-   new one -- see Installation below).
-4. Restart Home Assistant and confirm devices/entities show correctly
-   under the "Find Assistant" integration.
-
-If something looks wrong, restore the three `.bak` files (drop the
-`.pre_find_assistant_migration.bak` suffix) and restart again.
+**Not supported**: phones and LE Audio devices (earbuds/headphones)
+can't be tracked via Google account sync — Google's API doesn't expose
+a usable key for either category. A phone or IRK-capable device can
+still be added manually if you have its IRK.
 
 ## Installation
 
 1. Copy `custom_components/find_assistant/` into your Home Assistant
    config directory (`config/custom_components/find_assistant/`).
 2. Restart Home Assistant.
-3. **Settings → Devices & Services → Add Integration → "BLE Room
-   Presence"** — click Submit (nothing to configure yet).
+3. **Settings → Devices & Services → Add Integration → "Find
+   Assistant"** — click Submit (nothing to configure yet).
 4. **Settings → Devices & Services → Find Assistant → Configure** to
    add devices:
-   - **Import/update FMDN devices.json** — upload or paste the file from
-     `device_lister/list_devices.py`.
+   - **Link/relink a Google Find My account** — sync FMDN devices
+     automatically (recommended).
+   - **Import/update FMDN devices.json** — one-time/manual alternative
+     if you'd rather not link an account.
    - **Add a device by IRK** — name + 32-hex-char (16-byte) IRK.
    - **Add a device by static MAC** — name + `AA:BB:CC:DD:EE:FF`.
    - **Remove a device** — multi-select removal across all kinds.
 
-   Re-open Configure any time to add more devices or update the FMDN list
-   (re-importing replaces the FMDN list only; IRK/static-MAC devices are
-   unaffected).
+No FMDN-specific firmware needed on the proxy side — plain ESPHome
+`bluetooth_proxy:` is enough, since all matching happens here in
+Python.
 
-No ESPHome changes needed beyond what [`../esp_scanner/`](../esp_scanner/)
-already provides — plain `bluetooth_proxy:`, nothing FMDN-specific
-required on the device side, since all matching happens here in Python.
+## Vibe-coded — how it was validated
 
-## Verified vs. not yet tested
-
-**Verified without a live HA instance** (as much as possible standalone):
-- All three resolution strategies (`resolver.py`) tested against real
-  FMDN data plus synthetic IRK and static-MAC devices, including negative
-  controls (wrong IRK, garbage EID correctly rejected).
-- The IRK round-trip specifically: implemented the standard Bluetooth
-  `ah()` function independently to generate a known-good resolvable
-  address, confirmed `bluetooth-data-tools`'s `resolve_private_address`
-  accepts it and rejects a wrong IRK — both the byte-ordering convention
-  and the library's correctness are confirmed, not assumed.
-- The presence engine (`presence.py`): strongest-RSSI-wins room picking
-  across multiple simulated proxies, and staleness-based "away" detection,
-  both tested directly.
-- `bluetooth.async_register_callback`'s connectable-default and
-  replay-cache gotchas are already accounted for (same fixes as
-  `../ha_integration/`, confirmed there against live HA).
-
-**Not yet tested against live HA** (this is all new, unlike
-`../ha_integration/`'s core matching/injection logic which is
-live-confirmed):
-- The config flow and options flow in full (menu navigation, file
-  upload, entry reload after each change) — built following documented,
-  verified HA APIs, but never run end-to-end in a real instance.
-- `presence.py`'s Area lookup (`device_registry.async_get_device(connections={(CONNECTION_BLUETOOTH, source)})`)
-  — the `CONNECTION_BLUETOOTH` constant and `connections` parameter shape
-  are confirmed correct from HA's source, but whether ESPHome's device
-  registry entry actually registers a Bluetooth connection keyed by the
-  *scanner's* address (as opposed to its WiFi MAC) specifically is
-  unconfirmed. If it doesn't resolve, the code degrades gracefully —
-  `room` falls back to showing the raw proxy source string instead of a
-  pretty Area name, rather than breaking.
-- The `sensor.py` entity platform itself (device registry linkage,
-  `unique_id` stability, state updates via `async_write_ha_state()`).
-
-If the Area lookup doesn't pan out on your HA version, that's the first
-thing to investigate — everything else has a much more direct path to
-diagnosing (the same debug-logging approach used throughout this session
-works identically here).
+This integration was built conversationally with Claude (Anthropic)
+rather than hand-written line by line. Before anything was called done:
+every change was tested with scenario-based unit tests against stubbed
+Home Assistant internals (identity resolution, presence engine, config
+flow), a dedicated review pass checked for data-loss, threading, and
+credential-handling issues, and the result was confirmed working
+against a real Home Assistant instance with real trackers. Still —
+read the code before trusting it with your home.
