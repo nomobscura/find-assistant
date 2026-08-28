@@ -29,17 +29,20 @@ from .const import (
     CONF_IRK_DEVICES,
     CONF_PROXY_ROOMS,
     CONF_PROXY_RSSI_OFFSETS,
+    CONF_SMARTTAG_DEVICES,
     CONF_STATIC_MAC_DEVICES,
     CONF_UPDATE_LOCATION,
     DEFAULT_GOOGLE_SYNC_INTERVAL_HOURS,
     DOMAIN,
     KIND_FMDN,
     KIND_IRK,
+    KIND_SMARTTAG,
     KIND_STATIC_MAC,
 )
 from .google_findmy import GoogleFindMySession, validate_secrets
 from .identity import compute_id, merge_irk_candidates
 from .presence import _describe_source
+from .smarttag import validate_smarttag_device
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -47,6 +50,8 @@ CONF_DEVICES_FILE = "devices_json_file"
 CONF_DEVICES_TEXT = "devices_json_text"
 CONF_SECRETS_FILE = "secrets_json_file"
 CONF_SECRETS_TEXT = "secrets_json_text"
+CONF_SMARTTAG_FILE = "smarttag_json_file"
+CONF_SMARTTAG_TEXT = "smarttag_json_text"
 CONF_NAME = "name"
 CONF_IRK = "irk"
 CONF_MAC = "mac"
@@ -149,14 +154,38 @@ def _parse_and_validate_fmdn(raw: str) -> list:
     return devices
 
 
+def _parse_and_validate_smarttag(raw: str) -> list:
+    """Structural validation for a smarttag_devices.json upload, plus a
+    duplicate-identity check -- mirrors _parse_and_validate_fmdn above. See
+    smarttag/privacy_id.py's validate_smarttag_device for the per-entry field
+    checks (encryption_key/privacy_id_seed/pool_size/iv)."""
+    devices = json.loads(raw)
+    if not isinstance(devices, list):
+        raise ValueError("smarttag_devices.json must be a JSON array of device objects")
+    if not devices:
+        raise ValueError("smarttag_devices.json is empty -- no devices to track")
+    seen_ids = set()
+    for device in devices:
+        validate_smarttag_device(device)
+        device_id = compute_id(KIND_SMARTTAG, device)
+        if device_id in seen_ids:
+            raise ValueError(
+                f"'{device.get('name')}' has the same encryption_key/privacy_id_seed as another "
+                "entry -- same physical tag listed twice?"
+            )
+        seen_ids.add(device_id)
+    return devices
+
+
 def _all_devices_with_ids(data: dict) -> list:
-    """Every configured device across all three kinds as (id, name) pairs, in
+    """Every configured device across all kinds as (id, name) pairs, in
     a stable order -- used to build the "Remove a device" pick list."""
     result = []
     for kind, key in (
         (KIND_FMDN, CONF_FMDN_DEVICES),
         (KIND_IRK, CONF_IRK_DEVICES),
         (KIND_STATIC_MAC, CONF_STATIC_MAC_DEVICES),
+        (KIND_SMARTTAG, CONF_SMARTTAG_DEVICES),
     ):
         for d in data.get(key, []):
             result.append((compute_id(kind, d), d["name"]))
@@ -239,6 +268,7 @@ class BleRoomPresenceConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     CONF_FMDN_DEVICES: [],
                     CONF_IRK_DEVICES: [],
                     CONF_STATIC_MAC_DEVICES: [],
+                    CONF_SMARTTAG_DEVICES: [],
                     CONF_PROXY_ROOMS: [],
                     CONF_UPDATE_LOCATION: False,
                 },
@@ -283,6 +313,7 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
         menu_options += [
             "add_irk",
             "add_static_mac",
+            "import_smarttag",
             "remove_device",
             "map_proxy_room",
             "remove_proxy_room",
@@ -332,6 +363,58 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
             ),
         })
         return self.async_show_form(step_id="import_fmdn", data_schema=schema, errors=errors)
+
+    async def async_step_import_smarttag(self, user_input=None):
+        """
+        Import Samsung SmartTag devices for local BLE presence tracking (see
+        smarttag/__init__.py's module docstring for why this is a manual
+        JSON import rather than an account-linked sync like Google's, at
+        least for now). This REPLACES the whole SmartTag list, same as
+        import_fmdn -- re-importing the same file later reproduces the same
+        ids automatically (see identity.compute_id), no merge logic needed.
+
+        Each entry needs {name, encryption_key, privacy_id_seed, pool_size,
+        iv} -- encryption_key/privacy_id_seed/iv as base64, matching
+        whatever Samsung's SmartThings Device Info API returned for that tag
+        (obtaining that currently requires pulling it yourself; see
+        smarttag/__init__.py).
+        """
+        errors = {}
+
+        if user_input is not None:
+            raw = None
+            if user_input.get(CONF_SMARTTAG_FILE):
+                try:
+                    with process_uploaded_file(self.hass, user_input[CONF_SMARTTAG_FILE]) as file_path:
+                        raw = await self.hass.async_add_executor_job(file_path.read_text, "utf-8")
+                except Exception:
+                    _LOGGER.exception("Failed to read uploaded smarttag_devices.json")
+                    errors["base"] = "file_read_failed"
+            elif user_input.get(CONF_SMARTTAG_TEXT):
+                raw = user_input[CONF_SMARTTAG_TEXT]
+            else:
+                errors["base"] = "no_devices_provided"
+
+            if not errors:
+                try:
+                    smarttag_devices = await self.hass.async_add_executor_job(_parse_and_validate_smarttag, raw)
+                except (json.JSONDecodeError, ValueError, TypeError) as err:
+                    _LOGGER.debug("smarttag_devices.json validation failed: %s", err)
+                    errors["base"] = "invalid_smarttag_json"
+                else:
+                    data = dict(self.config_entry.data)
+                    data[CONF_SMARTTAG_DEVICES] = smarttag_devices
+                    return await self._save(data)
+
+        schema = vol.Schema({
+            vol.Optional(CONF_SMARTTAG_FILE): selector.FileSelector(
+                selector.FileSelectorConfig(accept=".json,application/json")
+            ),
+            vol.Optional(CONF_SMARTTAG_TEXT): selector.TextSelector(
+                selector.TextSelectorConfig(multiline=True)
+            ),
+        })
+        return self.async_show_form(step_id="import_smarttag", data_schema=schema, errors=errors)
 
     async def async_step_sync_google_account(self, user_input=None):
         """
@@ -621,6 +704,10 @@ class BleRoomPresenceOptionsFlow(config_entries.OptionsFlow):
                 data[CONF_STATIC_MAC_DEVICES] = [
                     d for d in data.get(CONF_STATIC_MAC_DEVICES, [])
                     if compute_id(KIND_STATIC_MAC, d) not in to_remove
+                ]
+                data[CONF_SMARTTAG_DEVICES] = [
+                    d for d in data.get(CONF_SMARTTAG_DEVICES, [])
+                    if compute_id(KIND_SMARTTAG, d) not in to_remove
                 ]
                 return await self._save(data)
 

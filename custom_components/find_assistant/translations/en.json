@@ -21,6 +21,7 @@
           "sync_google_now": "Sync Google account now",
           "add_irk": "Add a device by IRK",
           "add_static_mac": "Add a device by static MAC",
+          "import_smarttag": "Import Samsung SmartTag devices",
           "remove_device": "Remove a device",
           "map_proxy_room": "Override a proxy's room",
           "remove_proxy_room": "Remove a proxy room override",
@@ -63,6 +64,14 @@
         "data": {
           "name": "Name",
           "mac": "MAC address"
+        }
+      },
+      "import_smarttag": {
+        "title": "Import Samsung SmartTag devices",
+        "description": "Upload smarttag_devices.json, or paste its contents. This replaces the current SmartTag device list. Each entry needs {name, encryption_key, privacy_id_seed, pool_size, iv} -- the key fields as base64, matching what Samsung's SmartThings Device Info API reports for that tag. There's no account-linked sync for this yet (unlike Google Find My) -- see the integration's documentation for why, and for how to obtain this file. Ringing isn't supported for SmartTags yet either -- only local presence/location tracking.",
+        "data": {
+          "smarttag_json_file": "Upload smarttag_devices.json",
+          "smarttag_json_text": "...or paste smarttag_devices.json contents"
         }
       },
       "remove_device": {
@@ -110,6 +119,7 @@
       "invalid_json": "That doesn't look like a valid devices.json -- check it's a JSON array of {name, identity_key, pair_date} objects, and that no two entries share the same identity_key. Check Home Assistant's logs for the specific problem.",
       "invalid_irk": "IRK must be 32 hex characters (16 bytes) -- colons, dashes, and spaces between bytes are fine, e.g. 00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD:EE:FF.",
       "invalid_mac": "MAC must be 6 bytes of hex -- colons, dashes, and spaces between bytes are fine, e.g. AA:BB:CC:DD:EE:FF.",
+      "invalid_smarttag_json": "That doesn't look like a valid smarttag_devices.json -- check it's a JSON array of {name, encryption_key, privacy_id_seed, pool_size, iv} objects (key fields as base64), and that no two entries share the same encryption_key/privacy_id_seed. Check Home Assistant's logs for the specific problem.",
       "no_devices_selected": "Select at least one to remove, or go back if you didn't mean to.",
       "no_secrets_provided": "Upload a file or paste secrets.json contents.",
       "invalid_secrets": "That doesn't look like a valid secrets.json -- check it's the file produced by a completed GoogleFindMyTools login (needs fcm_credentials, username, aas_token, and owner_key).",

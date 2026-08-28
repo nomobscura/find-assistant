@@ -8,6 +8,12 @@ DOMAIN = "find_assistant"
 CONF_FMDN_DEVICES = "fmdn_devices"
 CONF_IRK_DEVICES = "irk_devices"
 CONF_STATIC_MAC_DEVICES = "static_mac_devices"
+#   smarttag:   {"name": str, "encryption_key": <base64>, "privacy_id_seed": <base64>,
+#                "pool_size": int, "iv": <base64>} -- see smarttag/privacy_id.py.
+# No cloud sync path for these yet (unlike fmdn's Google account linking) --
+# imported once via config_flow.py's import_smarttag step. See
+# smarttag/__init__.py's module docstring for why.
+CONF_SMARTTAG_DEVICES = "smarttag_devices"
 
 # List of {"source": "AA:BB:CC:DD:EE:FF", "room": "Living Room"} -- lets you give a
 # proxy's *actual room* as its display name instead of whatever HA's automatic
@@ -68,6 +74,7 @@ DEFAULT_GOOGLE_SYNC_INTERVAL_HOURS = 12
 KIND_FMDN = "fmdn"
 KIND_IRK = "irk"
 KIND_STATIC_MAC = "static_mac"
+KIND_SMARTTAG = "smarttag"
 
 # Fired on hass.bus whenever a tracked device's *winning proxy* changes --
 # i.e. it's now considered to be near a different proxy than before (ENTERED),
@@ -91,6 +98,11 @@ EVENT_TAG_SPOTTED_BY_PROXY = f"{DOMAIN}_tag_spotted"
 # Same UUIDs used throughout HA-FindMy.
 FMDN_SERVICE_UUID = "0000fcaf-0000-1000-8000-00805f9b34fb"
 EDDYSTONE_SERVICE_UUID = "0000feaa-0000-1000-8000-00805f9b34fb"
+
+# Samsung SmartTag control-service UUID -- carries the 20-byte service data
+# payload whose bytes 4:12 are the rotating Privacy ID (see
+# smarttag/privacy_id.py and https://github.com/KieronQuinn/uTag/wiki/BLE-Service-Data).
+SMARTTAG_SERVICE_UUID = "0000fd5a-0000-1000-8000-00805f9b34fb"
 
 # How often to recompute FMDN EID windows (clock advances, so the window
 # needs to be periodically re-centered on "now"). Keep in sync with

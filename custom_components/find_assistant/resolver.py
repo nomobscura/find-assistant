@@ -33,6 +33,7 @@ just tracked devices, so the miss path matters more than the hit path):
     hex digit 4-7). Public/static-random addresses can never resolve
     against any IRK, so the AES work is skipped for them entirely.
 """
+import base64
 import logging
 import time
 
@@ -40,6 +41,7 @@ from bluetooth_data_tools import get_cipher_for_irk, resolve_private_address
 
 from .eid_generator import EidGenerator, ROTATION_PERIOD
 from .identity import compute_id
+from .smarttag import generate_privacy_id_pool
 from .const import (
     EDDYSTONE_SERVICE_UUID,
     EID_REFRESH_SECONDS,
@@ -47,7 +49,9 @@ from .const import (
     FMDN_SERVICE_UUID,
     KIND_FMDN,
     KIND_IRK,
+    KIND_SMARTTAG,
     KIND_STATIC_MAC,
+    SMARTTAG_SERVICE_UUID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -67,7 +71,7 @@ class IdentityResolver:
     except the constructor, which __init__.py deliberately runs in an
     executor so the initial EID window computation stays off the loop)."""
 
-    def __init__(self, fmdn_devices: list, irk_devices: list, static_mac_devices: list):
+    def __init__(self, fmdn_devices: list, irk_devices: list, static_mac_devices: list, smarttag_devices: list = ()):
         self._fmdn_devices = fmdn_devices
         # Parallel to _fmdn_devices (same order/length) -- computed once so
         # neither this constructor nor _refresh_eid_windows need to re-hash
@@ -108,6 +112,28 @@ class IdentityResolver:
                 self._manufacturer[device_id] = d["manufacturer"]
             if d.get("model"):
                 self._model[device_id] = d["model"]
+
+        # Privacy ID -> device id, for KIND_SMARTTAG devices. Unlike FMDN's
+        # eid_to_id, this is NOT time-windowed -- SmartTags pick pseudo-
+        # randomly from a fixed pool rather than rotating on a wall-clock
+        # schedule (see smarttag/privacy_id.py), so the whole pool is
+        # precomputed once here and never needs refreshing.
+        self._smarttag_pool_to_id: dict[bytes, str] = {}
+        for d in smarttag_devices:
+            try:
+                device_id = compute_id(KIND_SMARTTAG, d)
+                pool = generate_privacy_id_pool(
+                    base64.b64decode(d["encryption_key"]),
+                    base64.b64decode(d["privacy_id_seed"]),
+                    base64.b64decode(d["iv"]),
+                    d["pool_size"],
+                )
+                for privacy_id in pool:
+                    self._smarttag_pool_to_id[privacy_id] = device_id
+                self._names[device_id] = d["name"]
+                self._kinds[device_id] = KIND_SMARTTAG
+            except Exception:
+                _LOGGER.exception("Failed to prepare SmartTag privacy ID pool for '%s' -- skipping it", d.get("name"))
 
         # Per-address IRK resolution cache -- see module docstring.
         self._irk_hits: dict[str, str] = {}
@@ -182,7 +208,16 @@ class IdentityResolver:
                 if device_id is not None:
                     return device_id
 
-        # 3. IRK -- only for genuinely resolvable private addresses, with
+        # 3. SmartTag -- look for its control-service data and match the
+        #    8-byte Privacy ID at offset 4:12 (see smarttag/privacy_id.py).
+        if service_data and self._smarttag_pool_to_id:
+            data = service_data.get(SMARTTAG_SERVICE_UUID)
+            if data and len(data) >= 12:
+                device_id = self._smarttag_pool_to_id.get(bytes(data[4:12]))
+                if device_id is not None:
+                    return device_id
+
+        # 4. IRK -- only for genuinely resolvable private addresses, with
         #    per-address result caching (see module docstring).
         if not self._irk_ciphers or address[0] not in _RPA_FIRST_DIGITS:
             return None
@@ -231,10 +266,18 @@ class IdentityResolver:
         FMDN-kind device synced from an account, for HA's Device Registry
         manufacturer field (see sensor.py/button.py's DeviceInfo). None if
         unavailable (manually-added kinds, or a device.json import that
-        predates this field)."""
+        predates this field). SmartTag devices don't carry per-device
+        manufacturer info in smarttag_devices.json (there's no cloud sync to
+        source it from -- see smarttag/__init__.py), so this hardcodes
+        "Samsung" for that kind instead."""
+        if self._kinds.get(device_id) == KIND_SMARTTAG:
+            return "Samsung"
         return self._manufacturer.get(device_id)
 
     def model_for(self, device_id: str) -> str | None:
         """Google's own model label (e.g. "Pebblebee Clip") -- see
-        manufacturer_for's docstring, same availability caveats."""
+        manufacturer_for's docstring, same availability caveats. Hardcoded
+        generically for SmartTag devices, same reasoning."""
+        if self._kinds.get(device_id) == KIND_SMARTTAG:
+            return "SmartTag"
         return self._model.get(device_id)

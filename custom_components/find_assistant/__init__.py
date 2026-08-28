@@ -46,6 +46,7 @@ from .const import (
     CONF_GOOGLE_SECRETS,
     CONF_GOOGLE_SYNC_INTERVAL_HOURS,
     CONF_IRK_DEVICES,
+    CONF_SMARTTAG_DEVICES,
     CONF_STATIC_MAC_DEVICES,
     DEFAULT_GOOGLE_SYNC_INTERVAL_HOURS,
     DOMAIN,
@@ -74,13 +75,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     fmdn_devices = entry.data.get(CONF_FMDN_DEVICES, [])
     irk_devices = entry.data.get(CONF_IRK_DEVICES, [])
     static_mac_devices = entry.data.get(CONF_STATIC_MAC_DEVICES, [])
+    smarttag_devices = entry.data.get(CONF_SMARTTAG_DEVICES, [])
     resolver = await hass.async_add_executor_job(
-        IdentityResolver, fmdn_devices, irk_devices, static_mac_devices,
+        IdentityResolver, fmdn_devices, irk_devices, static_mac_devices, smarttag_devices,
     )
     _LOGGER.debug(
-        "IdentityResolver built from %d FMDN + %d IRK + %d static-MAC entries -> "
+        "IdentityResolver built from %d FMDN + %d IRK + %d static-MAC + %d SmartTag entries -> "
         "%d unique device ids",
-        len(fmdn_devices), len(irk_devices), len(static_mac_devices), len(resolver.device_ids),
+        len(fmdn_devices), len(irk_devices), len(static_mac_devices), len(smarttag_devices),
+        len(resolver.device_ids),
     )
     tracker = RoomPresenceTracker(hass, resolver, entry)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = tracker

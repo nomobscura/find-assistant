@@ -20,7 +20,7 @@ treat as one).
 import hashlib
 import logging
 
-from .const import KIND_FMDN, KIND_IRK, KIND_STATIC_MAC
+from .const import KIND_FMDN, KIND_IRK, KIND_SMARTTAG, KIND_STATIC_MAC
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -34,6 +34,8 @@ def compute_id(kind: str, device: dict) -> str:
       - fmdn:       identity_key (the FMDN pairing secret)
       - irk:        irk (the classic-Bluetooth resolving key)
       - static_mac: mac (already unique by definition)
+      - smarttag:   encryption_key + privacy_id_seed (its provisioned secret
+                    pair -- see smarttag/privacy_id.py)
     Kind is included in the hashed material so that, in principle, an FMDN
     device and an IRK device could never collide even if their raw secrets
     happened to coincide (astronomically unlikely, but free to guard against).
@@ -44,6 +46,11 @@ def compute_id(kind: str, device: dict) -> str:
         material = device["irk"]
     elif kind == KIND_STATIC_MAC:
         material = device["mac"]
+    elif kind == KIND_SMARTTAG:
+        # Both base64 strings, verbatim as stored -- no case-folding (unlike
+        # the hex materials above) since base64 is case-sensitive.
+        material = device["encryption_key"] + ":" + device["privacy_id_seed"]
+        return hashlib.sha256(f"{kind}:{material}".encode()).hexdigest()[:_ID_LENGTH]
     else:
         raise ValueError(f"Unknown device kind: {kind}")
     digest = hashlib.sha256(f"{kind}:{material.upper()}".encode()).hexdigest()
